@@ -884,11 +884,19 @@ def run_apply(ctx: JobContext) -> dict:
     # from the render job, which persists the same project.chapter_id.)
     proj_media = _project_media(project)
     done_images: dict[int, Image.Image] = {}
+    # PSD background needs the *cleaned* art, not the rendered composite.
+    want_psd = "psd" in formats
+    cleaned_images: dict[int, Image.Image] = {}
     pending: list[Page] = []
     for p in pages:
         cached = proj_media / "rendered" / f"page-{p.page_number}.jpg"
         if cached.exists():
             done_images[p.page_number] = Image.open(cached).copy()
+            if want_psd:
+                clean_path = proj_media / "cleaned" / f"page-{p.page_number}.jpg"
+                if clean_path.exists():
+                    with Image.open(clean_path) as im:
+                        cleaned_images[p.page_number] = im.copy()
             continue
         pending.append(p)
     if done_images:
@@ -920,6 +928,10 @@ def run_apply(ctx: JobContext) -> dict:
             ctx, project, config, pending, images, pages_map, translations,
             progress=(0.05, 0.40),
         )
+        # `_inpaint_pages` mutates `images` in place, so this is the cleaned art.
+        if want_psd:
+            for idx, p in enumerate(pending):
+                cleaned_images[p.page_number] = images[idx]
 
         # Render text. render_page_list maps images positionally
         # (page_num = index + 1), so renumber the pending subset to keep its
@@ -972,12 +984,41 @@ def run_apply(ctx: JobContext) -> dict:
                                "url": f"/media/projects/{project.id}/outputs/{zip_path.name}"})
     if "psd" in requested:
         from comic_translator.psd_export import create_page_psd, save_psd_zip
+
+        # Reused rendered previews may not have a cleaned JPG on disk
+        # (render-only runs keep the erased art in memory). Rebuild the
+        # missing ones so the PSD background is the text-free page.
+        missing_clean = [p for p in pages
+                         if p.page_number not in cleaned_images]
+        if missing_clean:
+            from comic_translator.pdf import render_page, resize_to_width, standardize_image
+            missing_images = []
+            for p in missing_clean:
+                img = _load_page_image(project, p.page_number)
+                if img is None:
+                    if not project.pdf_file:
+                        raise RuntimeError(
+                            f"Page {p.page_number} image is missing and this "
+                            "project has no PDF to re-render from")
+                    img = render_page(project.pdf_file.path, p.page_number,
+                                      config.ocr.dpi)
+                    img = resize_to_width(img, 1200)
+                    img = standardize_image(img, config.ocr.standard_max_side)
+                missing_images.append(img)
+            ctx.log(f"Preparing cleaned art for {len(missing_clean)} PSD page(s)")
+            _inpaint_pages(ctx, project, config, missing_clean, missing_images,
+                           pages_map, translations, progress=(0.92, 0.94))
+            for p, img in zip(missing_clean, missing_images):
+                cleaned_images[p.page_number] = img
+
         psd_list = []
         for p, out_img in zip(pages, output_images):
             page_blks = pages_map.get(p.page_number, [])
             psd_list.append(create_page_psd(
-                out_img, page_blks, translations, config.font, None,
+                cleaned_images.get(p.page_number, out_img),
+                page_blks, translations, config.font, None,
                 chapter_id, config.chapter_id,
+                text_color_rules=getattr(config.typography, "text_color", None),
             ))
         psd_path = outputs_dir / f"{safe_name}_translated_psd.zip"
         save_psd_zip(psd_list, str(psd_path))

@@ -236,9 +236,14 @@ def create_page_psd(
 ):
     """Create a layered PSD for a single page.
 
+    ``page_image`` must be the *cleaned* page (original text already erased),
+    never the rendered composite — otherwise the Persian text is baked into
+    the background and duplicated by the text layers.
+
     Layers (bottom -> top):
-        - Background — the translated page image (RGB)
+        - Background — the cleaned page image (RGB)
         - One layer per translated text block (RGBA, named by block key)
+        - Chapter — optional chapter-ID stamp (RGBA)
 
     Returns a PSDImage instance.
     """
@@ -302,9 +307,41 @@ def create_page_psd(
         if text_layer is None:
             continue
 
+        # Crop away the transparent page-sized margins: the layer keeps only
+        # the pixels the text actually covers, with its offset preserved.
+        box = text_layer.getbbox()
+        if box is None:
+            continue
+        text_layer = text_layer.crop(box)
         _build_layer_from_image(
-            psd, text_layer, name=key, top=0, left=0, opacity=255,
+            psd, text_layer, name=key,
+            top=box[1], left=box[0], opacity=255,
         )
+
+    # The chapter stamp is page furniture, not a translated block. Keep it in
+    # its own layer so hiding the text layers leaves a genuinely clean page.
+    if chapter_id and chapter_id_config:
+        try:
+            from comic_translator.renderer import draw_chapter_id
+
+            stamp_layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            occupied = [
+                (blk.x1, blk.y1, blk.x2, blk.y2)
+                for key, blk in page_blocks
+                if translations.get(key, "").strip()
+            ]
+            stamp_layer = draw_chapter_id(
+                stamp_layer, str(chapter_id), chapter_id_config, font_path,
+                occupied_rects=occupied,
+            )
+            box = stamp_layer.getbbox()
+            if box:
+                _build_layer_from_image(
+                    psd, stamp_layer.crop(box), name="Chapter",
+                    top=box[1], left=box[0], opacity=255,
+                )
+        except Exception:
+            logger.exception("Could not build PSD chapter stamp layer")
 
     return psd
 
