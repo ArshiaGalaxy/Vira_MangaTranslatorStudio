@@ -19,7 +19,6 @@ export const dict = {
   "nav.how": { en: "How it works", fa: "چطور کار می‌کند" },
   "nav.studio": { en: "Open Studio", fa: "ورود به استودیو" },
   "nav.signIn": { en: "Sign in", fa: "ورود" },
-  "nav.signOut": { en: "Log out", fa: "خروج" },
   "nav.settings": { en: "Settings", fa: "تنظیمات" },
   "nav.projects": { en: "Projects", fa: "پروژه‌ها" },
   "nav.back": { en: "Back", fa: "بازگشت" },
@@ -240,11 +239,6 @@ export const dict = {
   },
   "landing.copyright": { en: "© 2026 Vira Studio", fa: "© 2026 ویرا استودیو" },
 
-  "login.tagline": {
-    en: "Manga into Persian. Publish-ready in minutes.",
-    fa: "مانگا به فارسی. آماده انتشار در چند دقیقه.",
-  },
-
   "ws.noImage": {
     en: "No page image — run Extract OCR first.",
     fa: "تصویری از صفحه نیست — اول استخراج OCR را اجرا کنید.",
@@ -256,13 +250,6 @@ export const dict = {
     fa: "پروژه پیدا نشد — ممکن است حذف شده باشد.",
   },
   "ws.backToProjects": { en: "Back to projects", fa: "بازگشت به پروژه‌ها" },
-
-  "login.welcome": { en: "Welcome back", fa: "خوش برگشتی" },
-  "login.subtitle": { en: "Sign in to your studio", fa: "وارد استودیو شوید" },
-  "login.username": { en: "Username", fa: "نام کاربری" },
-  "login.password": { en: "Password", fa: "رمز عبور" },
-  "login.submit": { en: "Sign in", fa: "ورود" },
-  "login.submitting": { en: "Signing in…", fa: "در حال ورود…" },
 
   "dash.libraryIntro": { en: "Your chapters, ready for the next step. Pick up where you left off.", fa: "چپترهای شما آمادهٔ مرحلهٔ بعد هستند. از همان‌جا که متوقف شدید ادامه دهید." },
   "dash.filterProjects": { en: "Filter projects", fa: "فیلتر پروژه‌ها" },
@@ -766,7 +753,6 @@ export const dict = {
   },
   "set.optSolid": { en: "Solid color fill", fa: "پرکردن تک‌رنگ" },
 
-  "toast.loginFailed": { en: "Login failed", fa: "ورود ناموفق بود" },
   "toast.uploadFailed": { en: "Upload failed", fa: "آپلود ناموفق بود" },
   "toast.deleteFailed": { en: "Delete failed", fa: "حذف ناموفق بود" },
   "toast.actionFailed": { en: "Action failed", fa: "عملیات ناموفق بود" },

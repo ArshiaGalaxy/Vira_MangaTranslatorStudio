@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowRight, BookOpenText, FileUp, LoaderCircle, LogOut, Plus, RefreshCw, Search, Settings2, Trash2, X } from "lucide-react";
+import { AlertCircle, ArrowRight, BookOpenText, FileUp, LoaderCircle, Plus, RefreshCw, Search, Settings2, Trash2, X } from "lucide-react";
 import { api } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
 import { DictKey, useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/theme";
 import { Project } from "@/lib/types";
@@ -23,7 +22,6 @@ const STATUSES: { value: string; label: DictKey }[] = [
 ];
 
 export default function ProjectsPage() {
-  const { me, loading, logout } = useAuth();
   const router = useRouter();
   const { t, locale } = useI18n();
   const toast = useToast();
@@ -63,7 +61,7 @@ export default function ProjectsPage() {
       // eslint-disable-next-line react-hooks/exhaustive-deps
       requestId.current++;
     };
-  }, [loading, router, load]);
+  }, [router, load]);
 
   const visible = useMemo(() => {
     const query = search.trim().toLocaleLowerCase(locale);
@@ -106,10 +104,6 @@ export default function ProjectsPage() {
     }
   }
 
-  if (loading) {
-    return <main className="flex min-h-screen items-center justify-center gap-3 text-muted" role="status"><LoaderCircle size={20} className="animate-spin" />{t("common.loading")}</main>;
-  }
-
   return (
     <main className="min-h-screen">
       <header className="border-b border-line bg-elev/70">
@@ -119,7 +113,6 @@ export default function ProjectsPage() {
             <LangThemeControls />
             <span className="mx-1 h-5 w-px bg-line" aria-hidden />
             <IconBtn label={t("nav.settings")} onClick={() => router.push("/settings")}><Settings2 size={17} /></IconBtn>
-            <IconBtn label={t("nav.signOut")} onClick={() => { void logout().catch(() => {}); }}><LogOut size={17} /></IconBtn>
           </div>
         </div>
       </header>

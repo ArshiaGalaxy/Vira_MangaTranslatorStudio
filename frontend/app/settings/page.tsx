@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { FontInfo } from "@/lib/types";
-import { useAuth } from "@/lib/auth";
 import { DictKey, useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/theme";
 import { Btn, IconBtn, LangThemeControls } from "@/components/ui";
@@ -254,7 +253,6 @@ export default function SettingsPage() {
   const { t } = useI18n();
   const toast = useToast();
   const router = useRouter();
-  const { me, loading: authLoading } = useAuth();
   const [config, setConfig] = useState<Record<string, Record<string, unknown>> | null>(null);
   const [fonts, setFonts] = useState<FontInfo[]>([]);
   const [saving, setSaving] = useState(false);
@@ -470,7 +468,7 @@ export default function SettingsPage() {
     return { groups, nestedObjects };
   }, [config, activeSection]);
 
-  if (authLoading || !config) {
+  if (!config) {
     return (
       <main className="flex min-h-screen items-center justify-center text-muted">
         {t("common.loading")}

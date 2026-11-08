@@ -204,7 +204,7 @@ Translation through OpenRouter or a custom OpenAI-compatible endpoint uses the C
 | Auto-translate does nothing | Set the API key (above) and restart the backend |
 | `DLL load failed` on paddleocr | Install 64-bit (x64) Python, not 32-bit |
 | First page load is very slow | It's the first Next.js build — subsequent loads are fast |
-| Images/files won't download | With `DJANGO_DEBUG=0`, `/media` files are served only to signed-in users — make sure you're logged in |
+| Images/files won't download | The app has no accounts, so nothing needs signing in — media files under the local `media/` folder are served to any local client. If images still fail, check the backend is running and that the project's page images were generated |
 | Phone can't open the LAN URL | Both devices must be on the same WiFi **without client isolation** (guest networks usually isolate devices); make sure the firewall allows TCP 3000 (`start-lan.bat` adds the rule, but only for networks marked *Private* — if Windows shows your WiFi as *Public*, switch it to Private in Settings → Network & Internet); use the exact **IPv4 Address** of the Wi-Fi adapter from `ipconfig` (not the `169.254.x.x` one) |
 
 ## 📜 License (please read)

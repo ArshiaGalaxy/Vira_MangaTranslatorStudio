@@ -28,7 +28,6 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Job, MaskMark, Page, ProjectDetail, TextBlock } from "@/lib/types";
-import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/theme";
 import { IconBtn, Modal, SplitButton, StatusBadge } from "@/components/ui";
@@ -61,7 +60,6 @@ const EXPORT_FORMATS = [
 export default function WorkspacePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { me, loading: authLoading } = useAuth();
   const { t } = useI18n();
   const toast = useToast();
 
@@ -1140,14 +1138,6 @@ export default function WorkspacePage() {
     },
     [project?.updated_at, job?.finished_at],
   );
-
-  if (authLoading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center text-muted">
-        {t("common.loading")}
-      </main>
-    );
-  }
 
   if (loadError && !project) {
     return (

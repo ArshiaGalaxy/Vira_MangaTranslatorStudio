@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
 import "./globals.css";
-import { AuthProvider } from "@/lib/auth";
 import { LanguageProvider, type Locale } from "@/lib/i18n";
 import { ThemeProvider, ToastProvider } from "@/lib/theme";
 
@@ -51,9 +50,7 @@ export default async function RootLayout({
       <body className="antialiased">
         <ThemeProvider>
           <LanguageProvider initialLocale={locale}>
-            <ToastProvider>
-              <AuthProvider>{children}</AuthProvider>
-            </ToastProvider>
+            <ToastProvider>{children}</ToastProvider>
           </LanguageProvider>
         </ThemeProvider>
       </body>
