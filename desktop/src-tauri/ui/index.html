@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vira Translator Studio</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 64 64" width="72" height="72" role="img" aria-label="Vira logo">
+          <rect x="2" y="2" width="60" height="60" rx="14" fill="#7c5cff"/>
+          <path d="M18 20 L27 44 L32 44 L41 20 L34 20 L29.5 34 L25 20 Z" fill="#fff"/>
+          <circle cx="47" cy="18" r="6" fill="#ffd166"/>
+        </svg>
+      </div>
+      <h1>Vira</h1>
+      <p class="sub">Manga Translator Studio</p>
+      <div class="brand-foot">
+        <p>Everything runs locally on this computer.</p>
+        <button id="open-logs" class="linklike" type="button">Open logs folder</button>
+      </div>
+    </aside>
+
+    <main class="panel">
+      <div class="panel-head">
+        <h2 id="stage-title">Starting Vira</h2>
+        <div class="progress-shell" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="progress-shell">
+          <div class="progress" id="progress"></div>
+        </div>
+        <p class="message" id="message">Connecting…</p>
+      </div>
+
+      <ul class="steps" id="steps">
+        <li data-stage="paths"><span class="dot"></span>Locate application files</li>
+        <li data-stage="data"><span class="dot"></span>Prepare your data folder</li>
+        <li data-stage="secrets"><span class="dot"></span>Load settings</li>
+        <li data-stage="runtimes"><span class="dot"></span>Verify built-in runtimes</li>
+        <li data-stage="pythonenv"><span class="dot"></span>Prepare Python libraries</li>
+        <li data-stage="ready"><span class="dot"></span>Ready to start</li>
+      </ul>
+
+      <div class="error-box hidden" id="error-box">
+        <strong id="error-title">Something went wrong</strong>
+        <pre id="error-detail"></pre>
+        <div class="error-actions">
+          <button id="retry" class="btn ghost" type="button">Try again</button>
+          <button id="open-logs-2" class="btn ghost" type="button">Open logs folder</button>
+        </div>
+      </div>
+
+      <div class="ai-card">
+        <div class="ai-text">
+          <strong>AI recognition &amp; inpainting <span id="ai-badge" class="badge">checking…</span></strong>
+          <p>Optional. Uses the network the first time (about 2 GB). Core Vira works fine without it.</p>
+        </div>
+        <button id="install-ai" class="btn secondary" type="button" disabled>Install AI</button>
+      </div>
+
+      <div class="actions">
+        <button id="start" class="btn primary" type="button" disabled>Start</button>
+        <p class="note" id="note">The studio opens in this window once services are running.</p>
+      </div>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

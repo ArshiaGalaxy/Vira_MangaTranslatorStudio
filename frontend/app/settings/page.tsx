@@ -7,6 +7,7 @@ import {
   Braces,
   Check,
   ChevronDown,
+  Download,
   Eye,
   EyeOff,
   Info,
@@ -33,6 +34,7 @@ const SECTIONS = [
   { key: "chapter_id", icon: <Sparkles size={15} /> },
   { key: "inpaint", icon: <Palette size={15} /> },
   { key: "typography", icon: <Braces size={15} /> },
+  { key: "updates", icon: <Zap size={15} /> },
 ] as const;
 
 const FONT_PATH_FIELDS = new Set(["path_normal", "path_sfx", "path_thinking"]);
@@ -218,6 +220,36 @@ function humanize(key: string): string {
 
 type FieldGroup = { key: string; items: [string, unknown][] };
 
+type UpdateCheckResponse = {
+  available: boolean;
+  current?: string;
+  version?: string;
+  release_notes?: string;
+  mandatory?: boolean;
+  file_size?: number;
+  published_at?: string;
+  download_url?: string;
+  sha256?: string;
+  error?: string;
+  reason?: string;
+};
+
+type UpdatePrefs = {
+  enabled: boolean;
+  last_check: string | null;
+  last_version: string | null;
+  skipped_version: string | null;
+  postpone_until: string | null;
+  update_ready: boolean;
+  pending_version: string | null;
+  pending_url: string | null;
+  pending_hash: string | null;
+  pending_notes: string;
+  download_path: string | null;
+  download_complete: boolean;
+  download_verified: boolean;
+};
+
 export default function SettingsPage() {
   const { t } = useI18n();
   const toast = useToast();
@@ -230,7 +262,40 @@ export default function SettingsPage() {
   const [dirty, setDirty] = useState(0);
   const [activeSection, setActiveSection] = useState("translator");
 
+  // ── Update state ─────────────────────────────────────────────────────
+  const [updateState, setUpdateState] = useState<{
+    available: boolean;
+    current: string;
+    version: string;
+    release_notes: string;
+    mandatory: boolean;
+    file_size: number;
+    published_at: string;
+    download_url: string;
+    sha256: string;
+    error?: string;
+    reason?: string;
+  } | null>(null);
+  const [updatePrefs, setUpdatePrefsLocal] = useState<{
+    enabled: boolean;
+    last_check: string | null;
+    last_version: string | null;
+    skipped_version: string | null;
+    postpone_until: string | null;
+    update_ready: boolean;
+    pending_version: string | null;
+    pending_url: string | null;
+    pending_hash: string | null;
+    pending_notes: string;
+    download_path: string | null;
+    download_complete: boolean;
+    download_verified: boolean;
+  } | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [downloadingUpdate, setDownloadingUpdate] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState({ loaded: 0, total: 0 });
 
+  // Load config, fonts, and update prefs
   const load = useCallback(async () => {
     try {
       setConfig(await api.get("/api/config"));
@@ -240,13 +305,45 @@ export default function SettingsPage() {
     }
   }, [t, toast]);
 
+  const loadUpdates = useCallback(async () => {
+    setCheckingUpdate(true);
+    try {
+      const [prefs, check] = await Promise.all([
+        api.get<UpdatePrefs>("/api/update/prefs"),
+        api.get<UpdateCheckResponse>("/api/update/check?force=1"),
+      ]);
+      setUpdatePrefsLocal(prefs);
+      if (check.available) {
+        setUpdateState(check as {
+          available: boolean;
+          current: string;
+          version: string;
+          release_notes: string;
+          mandatory: boolean;
+          file_size: number;
+          published_at: string;
+          download_url: string;
+          sha256: string;
+        });
+      } else {
+        setUpdateState(null);
+      }
+    } catch {
+      // Update check failing is not fatal — the app still works
+      setUpdateState(null);
+    } finally {
+      setCheckingUpdate(false);
+    }
+  }, [t, toast]);
+
   useEffect(() => {
     void load();
+    void loadUpdates();
     void api
       .get<FontInfo[]>("/api/fonts")
       .then(setFonts)
       .catch(() => {});
-  }, [load]);
+  }, [load, loadUpdates]);
 
   function setField(section: string, field: string, value: unknown) {
     setDirty((d) => d + 1);
@@ -266,6 +363,79 @@ export default function SettingsPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // ── Update actions ───────────────────────────────────────────────────
+
+  async function toggleUpdates(enabled: boolean) {
+    try {
+      const prefs = await api.put<UpdatePrefs>("/api/update/prefs", { enabled });
+      setUpdatePrefsLocal(prefs);
+      toast.push(
+        enabled ? t("set.updatesEnabled") : t("set.updatesDisabled"),
+        "success",
+      );
+    } catch (err) {
+      toast.push(err instanceof Error ? err.message : t("toast.actionFailed"), "error");
+    }
+  }
+
+  async function postponeUpdates(hours: number) {
+    try {
+      const prefs = await api.put<UpdatePrefs>("/api/update/prefs", { postpone_hours: hours });
+      setUpdatePrefsLocal(prefs);
+      setUpdateState(null);
+      toast.push(t("set.updatesPostponed", { hours }), "info");
+    } catch (err) {
+      toast.push(err instanceof Error ? err.message : t("toast.actionFailed"), "error");
+    }
+  }
+
+  async function skipThisUpdate() {
+    if (!updateState) return;
+    try {
+      const prefs = await api.put<UpdatePrefs>("/api/update/prefs", {
+        skip_version: updateState.version,
+      });
+      setUpdatePrefsLocal(prefs);
+      setUpdateState(null);
+      toast.push(t("set.updateSkipped"), "info");
+    } catch (err) {
+      toast.push(err instanceof Error ? err.message : t("toast.actionFailed"), "error");
+    }
+  }
+
+  async function downloadUpdate() {
+    if (!updateState) return;
+    setDownloadingUpdate(true);
+    setDownloadProgress({ loaded: 0, total: 0 });
+    try {
+      const result = await api.post<{ path: string; version: string }>("/api/update/download", {});
+      const prefs = await api.get<UpdatePrefs>("/api/update/prefs");
+      setUpdatePrefsLocal(prefs);
+      toast.push(t("set.updateDownloaded"), "success");
+    } catch (err) {
+      toast.push(err instanceof Error ? err.message : t("toast.actionFailed"), "error");
+    } finally {
+      setDownloadingUpdate(false);
+      setDownloadProgress({ loaded: 0, total: 0 });
+    }
+  }
+
+  async function applyUpdate() {
+    if (!updatePrefs?.download_path) return;
+    try {
+      await api.post<{ status: string }>("/api/update/apply", { path: updatePrefs.download_path });
+      // apply_update exits the process, so this normally never returns
+    } catch (err) {
+      toast.push(err instanceof Error ? err.message : t("toast.actionFailed"), "error");
+    }
+  }
+
+  function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   const { groups, nestedObjects } = useMemo(() => {
@@ -429,6 +599,179 @@ export default function SettingsPage() {
           })}
         </div>
       </div>
+
+      {/* Updates section */}
+      {activeSection === "updates" && (
+        <div className="card anim-fade-up p-6 sm:p-7 mt-6 space-y-6">
+          <h2 className="font-display text-2xl font-extrabold" dir="auto">
+            {t("set.sec.updates")}
+          </h2>
+          <p className="text-sm leading-relaxed text-muted" dir="auto">
+            {t("set.desc.updates")}
+          </p>
+
+          {/* Update preferences */}
+          {updatePrefs && (
+            <section className="rounded-2xl border border-line bg-surface2 p-5">
+              <h3 className="mb-3 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-faint">
+                <Zap size={13} />
+                {t("set.grp.prefs")}
+              </h3>
+              <div className="grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
+                <div className="flex items-center gap-3">
+                  <label className="inline-flex w-fit cursor-pointer items-center">
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={updatePrefs.enabled}
+                      onChange={(e) => toggleUpdates(e.target.checked)}
+                    />
+                    <span
+                      aria-hidden
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full border transition-colors ${
+                        updatePrefs.enabled
+                          ? "border-primary bg-primary"
+                          : "border-line bg-surface3"
+                      }`}
+                    >
+                      <span
+                        className={`absolute start-[3px] top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-white shadow-sm transition-transform ${
+                          updatePrefs.enabled ? "translate-x-4" : ""
+                        }`}
+                      />
+                    </span>
+                  </label>
+                  <div>
+                    <div className="text-xs font-bold text-ink" dir="auto">
+                      {t("set.enableUpdates")}
+                    </div>
+                    <div className="text-[11px] text-faint" dir="auto">
+                      {t("set.enableUpdatesHint")}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-bold text-ink" dir="auto">
+                      {t("set.lastCheck")}
+                    </div>
+                    <div className="text-[11px] text-faint" dir="auto">
+                      {updatePrefs.last_check ?? t("set.never")}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => void loadUpdates()}
+                    disabled={checkingUpdate}
+                    className="rounded-btn border border-line-strong bg-elev px-3 py-1.5 text-[11px] font-bold text-ink transition-colors hover:bg-surface3 disabled:opacity-60"
+                  >
+                    {checkingUpdate ? t("set.checking") : t("set.checkNow")}
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Update available */}
+          {updateState && updateState.available && (
+            <section className="rounded-2xl border border-primary bg-primary/5 p-5 shadow-[2px_2px_0_0_var(--primary)]">
+              <div className="flex items-start gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-fg shrink-0">
+                  <Zap size={16} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-ink" dir="auto">
+                    {t("set.updateAvailable", { version: updateState.version })}
+                  </h3>
+                  <p className="mt-1 text-sm leading-relaxed text-muted" dir="auto">
+                    {updateState.release_notes}
+                  </p>
+                  <div className="mt-3 flex items-center gap-2 text-xs text-faint">
+                    <span>{t("set.currentVersion", { v: updateState.current })}</span>
+                    <span>{t("set.newVersion", { v: updateState.version })}</span>
+                    <span>{formatFileSize(updateState.file_size)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {updatePrefs?.download_complete && updatePrefs?.download_path ? (
+                  <>
+                    <button
+                      onClick={() => void applyUpdate()}
+                      disabled={downloadingUpdate}
+                      className="w-full btn btn-primary"
+                    >
+                      {downloadingUpdate ? (
+                        <>
+                          <Loader2 size={14} className="animate-spin mr-2" />
+                          {t("set.installing")}
+                        </>
+                      ) : (
+                        <>
+                          <Zap size={14} />
+                          {t("set.installUpdate")}
+                        </>
+                      )}
+                    </button>
+                    <p className="text-[11px] text-success" dir="auto">
+                      {t("set.updateReady")}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => void downloadUpdate()}
+                      disabled={downloadingUpdate}
+                      className="w-full btn btn-primary"
+                    >
+                      {downloadingUpdate ? (
+                        <>
+                          <Loader2 size={14} className="animate-spin mr-2" />
+                          {t("set.downloading")}
+                          {downloadProgress.total > 0 ? ` (${Math.round((downloadProgress.loaded / downloadProgress.total) * 100)}%)` : ""}
+                        </>
+                      ) : (
+                        <>
+                          <Download size={14} />
+                          {t("set.downloadUpdate")}
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => postponeUpdates(24)}
+                    className="flex-1 btn btn-ghost text-xs"
+                  >
+                    {t("set.postpone24h")}
+                  </button>
+                  <button
+                    onClick={() => skipThisUpdate()}
+                    className="flex-1 btn btn-ghost text-xs"
+                  >
+                    {t("set.skipVersion")}
+                  </button>
+                </div>
+              </div>
+
+              {updateState.mandatory && (
+                <p className="mt-3 text-[11px] font-bold text-danger" dir="auto">
+                  ⚠ {t("set.mandatoryUpdate")}
+                </p>
+              )}
+            </section>
+          )}
+
+          {!updateState && updatePrefs && updatePrefs.enabled && (
+            <section className="rounded-2xl border border-line bg-surface2 p-5 text-center">
+              <p className="text-sm text-muted" dir="auto">
+                {t("set.upToDate", { v: updatePrefs.last_version ?? "1.0.0" })}
+              </p>
+            </section>
+          )}
+        </div>
+      )}
 
       {/* Sticky save bar */}
       <div

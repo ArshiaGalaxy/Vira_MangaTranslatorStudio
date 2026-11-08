@@ -1,5 +1,9 @@
 """
 Django settings for Vira Translator Studio backend.
+
+Desktop production mode: when STUDIO_DESKTOP=1, the app runs as a local
+desktop application. Paths (database, media, fonts) are relocated to the
+Windows user data directory so user projects survive application updates.
 """
 
 import os
@@ -13,6 +17,32 @@ ENGINE_DIR = BASE_DIR / "studio_engine"
 if str(ENGINE_DIR) not in sys.path:
     sys.path.insert(0, str(ENGINE_DIR))
 
+# ── Desktop mode detection ──────────────────────────────────────────────────
+
+DESKTOP_MODE = os.environ.get("STUDIO_DESKTOP", "0") == "1"
+
+# Windows user data directory: %LOCALAPPDATA%\Vira Translator Studio
+if DESKTOP_MODE:
+    import winreg
+    import os as _os
+
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders",
+        ) as key:
+            local_app_data = Path(
+                _os.path.expandvars(winreg.QueryValueEx(key, "Local AppData")[0])
+            )
+    except Exception:
+        local_app_data = Path(
+            _os.path.expandvars(_os.environ.get("LOCALAPPDATA", str(Path.home())))
+        )
+    USER_DATA_DIR = local_app_data / "Vira Translator Studio"
+    USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+else:
+    USER_DATA_DIR = BASE_DIR
+
 # Where Persian fonts live (scanned by /api/fonts)
 FONTS_DIR = Path(os.environ.get("STUDIO_FONTS_DIR", BASE_DIR / "fonts"))
 
@@ -23,18 +53,21 @@ SECRET_KEY = os.environ.get(
     "django-insecure-7pa@xtfbg(0!*t-1m75=rr$dioc-0#woxxxmv=5#0qqdl-r%f3",
 )
 
-DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
+# Desktop: default to production (DEBUG=0) but allow override
+if DESKTOP_MODE:
+    DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
+else:
+    DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 
 # Fail-closed: the insecure fallback key is only acceptable when DEBUG=1 was
-# explicitly requested. Any other DJANGO_DEBUG value (including typos like
-# "0 " or "true") must supply a real key, so a prod misconfiguration cannot
-# silently ship DEBUG=True with a committed session-forgery secret.
+# explicitly requested.
 if not DEBUG and SECRET_KEY.startswith("django-insecure-"):
     raise ImproperlyConfigured(
         "DJANGO_SECRET_KEY must be set via environment when DJANGO_DEBUG is "
         "not exactly '1'"
     )
 
+# Desktop: bind to 127.0.0.1 only; ALLOWED_HOSTS includes localhost/127.0.0.1
 ALLOWED_HOSTS = os.environ.get(
     "DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1"
 ).split(",")
@@ -88,12 +121,21 @@ WSGI_APPLICATION = "backend.wsgi.application"
 
 # ── Database ────────────────────────────────────────────────────────────────
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+# Desktop: store SQLite DB in user data directory so it survives updates
+if DESKTOP_MODE:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": USER_DATA_DIR / "db.sqlite3",
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 # ── Auth ────────────────────────────────────────────────────────────────────
 # No login/signup/admin: the studio is a personal, unauthenticated app.
@@ -112,7 +154,15 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+
+# Desktop: store media (projects, uploads, exports) in user data directory
+if DESKTOP_MODE:
+    MEDIA_ROOT = USER_DATA_DIR / "media"
+    # Collect frontend static assets into Django's static dir for serving
+    STATIC_ROOT = BASE_DIR / "staticfiles"
+else:
+    MEDIA_ROOT = BASE_DIR / "media"
+    STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Large PDF uploads
 DATA_UPLOAD_MAX_MEMORY_SIZE = 512 * 1024 * 1024
@@ -129,17 +179,26 @@ REST_FRAMEWORK = {
     "UNAUTHENTICATED_USER": "django.contrib.auth.models.AnonymousUser",
 }
 
-# ── CORS / CSRF (frontend dev server) ───────────────────────────────────────
+# ── CORS / CSRF ─────────────────────────────────────────────────────────────
 
-CORS_ALLOWED_ORIGINS = [
+# Desktop: the frontend runs on the same origin as Django (served by Django)
+# or on a local port. Allow localhost origins plus any FRONTEND_ORIGIN env var.
+_CORS_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
 ]
+# In desktop mode, also allow the actual frontend port (set at runtime)
+if DESKTOP_MODE:
+    _frontend_port = os.environ.get("STUDIO_FRONTEND_PORT", "3000")
+    for _origin in (f"http://localhost:{_frontend_port}", f"http://127.0.0.1:{_frontend_port}"):
+        if _origin not in _CORS_ORIGINS:
+            _CORS_ORIGINS.append(_origin)
+
+CORS_ALLOWED_ORIGINS = _CORS_ORIGINS
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
+CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 
@@ -159,9 +218,7 @@ if not DEBUG:
     X_FRAME_OPTIONS = "DENY"
 
     # HTTPS enforcement is opt-in via DJANGO_HTTPS=1 so a plain-HTTP LAN
-    # deployment still works: secure cookies over plain HTTP make the browser
-    # drop the session, silently breaking login. When enabled, secure cookies,
-    # HSTS and SSL redirect all activate.
+    # deployment still works.
     if os.environ.get("DJANGO_HTTPS", "0") == "1":
         SESSION_COOKIE_SECURE = True
         CSRF_COOKIE_SECURE = True

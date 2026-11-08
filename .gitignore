@@ -19,3 +19,9 @@ out/
 .idea/
 .vscode/
 backend/.venv
+
+# Local project state
+.freebuff/
+backend/staticfiles/
+Thumbs.db
+.DS_Store

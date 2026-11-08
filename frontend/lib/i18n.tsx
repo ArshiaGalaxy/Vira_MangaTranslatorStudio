@@ -792,6 +792,53 @@ export const dict = {
 
   "common.loading": { en: "Loading…", fa: "در حال بارگذاری…" },
   "common.close": { en: "Close", fa: "بستن" },
+
+  /* ── Updates section (Settings → Updates) ──────────────────────────── */
+  "set.sec.updates": { en: "Updates", fa: "بروزرسانی‌ها" },
+  "set.desc.updates": {
+    en: "Check for new versions of Vira Translator Studio and install updates.",
+    fa: "بررسی نسخه‌های جدید ویرا استودیو مترجم و نصب بروزرسانی‌ها.",
+  },
+  "set.grp.prefs": { en: "Preferences", fa: "ترجیحات" },
+  "set.enableUpdates": { en: "Enable automatic update checks", fa: "فعال کردن بررسی خودکار بروزرسانی" },
+  "set.enableUpdatesHint": {
+    en: "When enabled, Vira checks for updates once per day.",
+    fa: "هنگام فعال بودن، ویرا هر روز یک‌بار برای بروزرسانی بررسی می‌کند.",
+  },
+  "set.lastCheck": { en: "Last checked", fa: "آخرین بررسی" },
+  "set.never": { en: "Never", fa: "هرگز" },
+  "set.checkNow": { en: "Check now", fa: "بررسی اکنون" },
+  "set.checking": { en: "Checking…", fa: "در حال بررسی…" },
+
+  "set.updateAvailable": {
+    en: "Version {version} is available",
+    fa: "نسخه {version} در دسترس است",
+  },
+  "set.currentVersion": { en: "Current: {v}", fa: " فعلی: {v}" },
+  "set.newVersion": { en: "New: {v}", fa: "جدید: {v}" },
+  "set.updateReady": {
+    en: "Update downloaded and verified — ready to install.",
+    fa: "بروزرسانی دانلود و تایید شد — آماده نصب است.",
+  },
+  "set.updateDownloaded": {
+    en: "Update downloaded successfully.",
+    fa: "بروزرسانی با موفقیت دانلود شد.",
+  },
+  "set.downloadUpdate": { en: "Download update", fa: "دانلود بروزرسانی" },
+  "set.downloading": { en: "Downloading…", fa: "در حال دانلود…" },
+  "set.installUpdate": { en: "Install update", fa: "نصب بروزرسانی" },
+  "set.installing": { en: "Installing…", fa: "در حال نصب…" },
+  "set.updatesEnabled": { en: "Automatic update checks enabled", fa: "بررسی خودکار بروزرسانی فعال شد" },
+  "set.updatesDisabled": { en: "Automatic update checks disabled", fa: "بررسی خودکار بروزرسانی غیرفعال شد" },
+  "set.updateSkipped": { en: "This version will be skipped", fa: "این نسخه نادیده گرفته می‌شود" },
+  "set.updatesPostponed": { en: "Updates postponed for {hours} hours", fa: "بروزرسانی‌ها برای {hours} ساعت موکول شدند" },
+  "set.postpone24h": { en: "Remind in 24h", fa: "یادآوری در ۲۴ ساعت" },
+  "set.skipVersion": { en: "Skip this version", fa: "نادیده گرفتن این نسخه" },
+  "set.upToDate": { en: "You're up to date (v{v}).", fa: "شما به‌روزرسانی هستید (v{v})." },
+  "set.mandatoryUpdate": {
+    en: "This update is mandatory — please install it.",
+    fa: "این بروزرسانی الزامی است — لطفاً آن را نصب کنید.",
+  },
 } satisfies Record<string, Entry>;
 
 export type DictKey = keyof typeof dict;

@@ -29,6 +29,11 @@ urlpatterns = [
     path("config/test-provider", views.ConfigTestProviderView.as_view()),
     path("fonts", views.FontsView.as_view()),
     path("fonts/<str:name>", views.font_file),
+    # Update system (desktop only)
+    path("update/check", views.UpdateCheckView.as_view()),
+    path("update/prefs", views.UpdatePrefsView.as_view()),
+    path("update/download", views.UpdateDownloadView.as_view()),
+    path("update/apply", views.UpdateApplyView.as_view()),
     # Chapter discovery (no project required)
     path("chapter-images", views.discover_chapter_images),
     # Nested project resources

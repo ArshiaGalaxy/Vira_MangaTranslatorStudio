@@ -1,0 +1,7 @@
+# Targets for this directory
+/target/
+/payload/
+.cache/
+src-tauri/gen/schemas/
+src-tauri/target/
+*.log

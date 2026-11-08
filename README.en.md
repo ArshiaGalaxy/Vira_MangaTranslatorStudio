@@ -51,6 +51,8 @@ A full-stack, local-first studio for Persian manga/manhwa translation:
 
 ## ⚙️ Prerequisites
 
+> 🪟 **The Windows desktop app needs none of these** — the installer bundles everything. The table below only applies to running from source (Options 1 and 2).
+
 | Need | Minimum | Where to get it |
 | --- | --- | --- |
 | 🐍 Python | **3.10 – 3.12** (paddlepaddle compatible) | [python.org](https://www.python.org/downloads/) |
@@ -62,6 +64,22 @@ A full-stack, local-first studio for Persian manga/manhwa translation:
 > 🪟 Windows, Linux and macOS are all supported; on Windows the included **`start.bat`** does everything (`start-lan.bat` additionally lets your phone/tablet use the app over the same WiFi).
 
 ## 🚀 Quick start: 0 to 100
+
+### Option 0 — Windows desktop app 🪟 (easiest — no Python or Node needed!)
+
+If you just want to install and use the app on Windows, you need **none** of the prerequisites below:
+
+1. 📥 Download **`Vira_1.0.0_x64-setup.exe`** from [Releases](https://github.com/ArshiaGalaxy/Vira_TranslatorStudio/releases) and run it.
+2. ✔ Simple, fast install (~1 minute) — Python, Node and every library are **bundled inside the installer**; dependencies are installed **offline** (no internet needed).
+3. 🔛 After installing, open **Vira** from the Start menu → press **Start** → the studio opens inside the app window itself.
+
+> ⏱ **First run** takes about a minute (library + database setup); **every launch after that takes a few seconds**.
+>
+> 📁 Your data (database, images, settings) is stored safely in `%LOCALAPPDATA%\Vira Translator Studio` — it is **never removed by updates or uninstall**.
+>
+> 🤖 AI features (auto OCR, Gemini, LaMa) are optional and install later from **inside the app** via the Install AI button (requires internet).
+>
+> 🖥 Minimum requirement: 64-bit Windows 10/11. If WebView2 is missing, the installer downloads and sets it up itself (the only step that needs internet).
 
 ### Option 1 — Windows, one click (Core install)
 

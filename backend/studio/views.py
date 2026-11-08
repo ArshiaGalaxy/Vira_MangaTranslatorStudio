@@ -2,6 +2,7 @@
 
 import logging
 import mimetypes
+import time
 
 from django.conf import settings
 from django.core.exceptions import BadRequest
@@ -701,3 +702,117 @@ def media_file(request, file_path: str):
         response["Content-Disposition"] = f'attachment; filename="{full.name}"'
     response["X-Content-Type-Options"] = "nosniff"
     return response
+
+
+# ── Update system (desktop only) ────────────────────────────────────────────
+
+from .update_system import (
+    check_for_updates,
+    get_update_prefs,
+    set_update_prefs,
+    skip_version,
+    postpone,
+    enable_updates,
+    dismiss_update,
+    download_update,
+    CURRENT_VERSION,
+)
+
+
+class UpdateCheckView(APIView):
+    """GET /api/update/check — check for a new version.
+
+    Returns the current update state. If a new version is available and
+    staged, includes download details.
+    """
+
+    def get(self, request):
+        force = request.query_params.get("force", "0") == "1"
+        result = check_for_updates(force=force)
+        return Response(result)
+
+
+class UpdatePrefsView(APIView):
+    """GET/PUT /api/update/prefs — read/write update preferences.
+
+    GET returns current prefs. PUT accepts fields:
+      enabled, postpone_hours, skip_version
+    """
+
+    def get(self, request):
+        return Response(get_update_prefs())
+
+    def put(self, request):
+        if not isinstance(request.data, dict):
+            return Response({"error": "JSON object expected"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        data = request.data
+
+        if "enabled" in data:
+            enable_updates(bool(data["enabled"]))
+
+        if "postpone_hours" in data:
+            try:
+                hours = int(data["postpone_hours"])
+                if hours > 0:
+                    postpone(hours)
+            except (TypeError, ValueError):
+                return Response({"error": "postpone_hours must be an integer"},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+        if "skip_version" in data:
+            skip_version(str(data["skip_version"]))
+
+        if "dismiss" in data and data["dismiss"]:
+            dismiss_update()
+
+        return Response(get_update_prefs())
+
+
+class UpdateDownloadView(APIView):
+    """POST /api/update/download — download the staged update.
+
+    Returns {"path": str, "version": str} on success.
+    """
+
+    def post(self, request):
+        try:
+            result = download_update()
+            return Response(result)
+        except Exception as e:
+            return Response({"error": str(e)},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class UpdateApplyView(APIView):
+    """POST /api/update/apply — launch the downloaded installer.
+
+    The current process exits after launching the installer (desktop only).
+    """
+
+    def post(self, request):
+        if not isinstance(request.data, dict):
+            return Response({"error": "JSON object expected"},
+                            status=status.HTTP_400_BAD_REQUEST)
+        path = request.data.get("path")
+        if not path:
+            return Response({"error": "path is required"},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            # Launch in a background thread so the HTTP response can return
+            import threading
+
+            def _launch():
+                time.sleep(1)  # let the response send
+                from .update_system import apply_update
+                apply_update(path)
+
+            threading.Thread(target=_launch, daemon=True).start()
+            return Response({"status": "launching"})
+        except Exception as e:
+            return Response({"error": str(e)},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Add time import for UpdateApplyView

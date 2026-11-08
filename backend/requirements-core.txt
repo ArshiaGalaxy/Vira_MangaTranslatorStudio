@@ -7,7 +7,7 @@ numpy==1.26.4
 opencv-python-headless==4.11.0.86
 Pillow==9.5.0
 psd-tools==1.8.24
-PyMuPDF==2.0
+PyMuPDF==1.28.2
 python-bidi==0.6.12
 python-dotenv==1.2.4
 arabic-reshaper==3.0.1
