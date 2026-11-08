@@ -69,7 +69,7 @@ PDF رو میدی؛ متن تشخیص داده می‌شه، به فارسی ت�
 
 اگر فقط می‌خواهی برنامه را روی ویندوز نصب و استفاده کنی، به هیچ‌کدام از پیش‌نیازهای پایین نیاز نداری:
 
-1. 📥 فایل نصاب **`Vira_1.0.0_x64-setup.exe`** را از [Releases](https://github.com/ArshiaGalaxy/Vira_TranslatorStudio/releases) دانلود و اجرا کن.
+1. 📥 فایل نصاب **`Vira_1.0.0_x64-setup.exe`** را از [Releases](https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio/releases) دانلود و اجرا کن.
 2. ✔ نصب ساده و سریع (حدود ۱ دقیقه) — پایتون، نود و همهٔ کتابخانه‌ها **داخل خودِ نصاب** هستند؛ نصب وابستگی‌ها هم **آفلاین** انجام می‌شود (اینترنت لازم نیست).
 3. 🔛 بعد از نصب، **Vira** را از منوی Start باز کن → دکمهٔ **Start** را بزن → استودیو داخل خودِ پنجرهٔ برنامه باز می‌شود.
 
@@ -85,8 +85,8 @@ PDF رو میدی؛ متن تشخیص داده می‌شه، به فارسی ت�
 
 1. 📥 پروژه را بگیرید:
    ```powershell
-   git clone https://github.com/ArshiaGalaxy/Vira_TranslatorStudio.git
-   cd Vira_TranslatorStudio
+   git clone https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio.git
+   cd Vira_MangaTranslatorStudio
    ```
    (یا از صفحهٔ Releases، ZIP را دانلود و باز کنید.)
 2. 🔛 فایل **`start.bat`** را دوبارکلیک کنید. بار اول، خودش این کارها را انجام می‌دهد:
@@ -101,8 +101,8 @@ PDF رو میدی؛ متن تشخیص داده می‌شه، به فارسی ت�
 
 ```bash
 # 1️⃣ دانلود
-git clone https://github.com/ArshiaGalaxy/Vira_TranslatorStudio.git
-cd Vira_TranslatorStudio
+git clone https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio.git
+cd Vira_MangaTranslatorStudio
 
 # 2️⃣ بک‌اند — Django + API (پورت 8000)
 cd backend
@@ -225,7 +225,7 @@ pip install -r requirements.txt
 
 - ✅ **استفاده، تغییر، انتشار و استفادهٔ تجاری آزاد است** — هر کاری با کد می‌تونی بکنی.
 - 🔖 تنها شرط: **نشانی کپی‌رایت و متن لایسنس باید همراه کد باقی بماند.**
-- 💌 برای همکاری یا هر سؤالی: [Issue باز کنید](https://github.com/ArshiaGalaxy/Vira_TranslatorStudio/issues) یا به من پیام بده — خوشحال می‌شم کمک کنم.
+- 💌 برای همکاری یا هر سؤالی: [Issue باز کنید](https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio/issues) یا به من پیام بده — خوشحال می‌شم کمک کنم.
 
 ## 🤝 مشارکت
 

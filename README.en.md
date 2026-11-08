@@ -69,7 +69,7 @@ A full-stack, local-first studio for Persian manga/manhwa translation:
 
 If you just want to install and use the app on Windows, you need **none** of the prerequisites below:
 
-1. 📥 Download **`Vira_1.0.0_x64-setup.exe`** from [Releases](https://github.com/ArshiaGalaxy/Vira_TranslatorStudio/releases) and run it.
+1. 📥 Download **`Vira_1.0.0_x64-setup.exe`** from [Releases](https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio/releases) and run it.
 2. ✔ Simple, fast install (~1 minute) — Python, Node and every library are **bundled inside the installer**; dependencies are installed **offline** (no internet needed).
 3. 🔛 After installing, open **Vira** from the Start menu → press **Start** → the studio opens inside the app window itself.
 
@@ -85,8 +85,8 @@ If you just want to install and use the app on Windows, you need **none** of the
 
 1. 📥 Get the project:
    ```powershell
-   git clone https://github.com/ArshiaGalaxy/Vira_TranslatorStudio.git
-   cd Vira_TranslatorStudio
+   git clone https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio.git
+   cd Vira_MangaTranslatorStudio
    ```
    (or download and extract the ZIP from the Releases page)
 2. 🔛 Double-click **`start.bat`**. On the very first run it automatically:
@@ -101,8 +101,8 @@ If you just want to install and use the app on Windows, you need **none** of the
 
 ```bash
 # 1️⃣ Get the code
-git clone https://github.com/ArshiaGalaxy/Vira_TranslatorStudio.git
-cd Vira_TranslatorStudio
+git clone https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio.git
+cd Vira_MangaTranslatorStudio
 
 # 2️⃣ Backend — Django + API (port 8000)
 cd backend
@@ -213,7 +213,7 @@ Released under **[MIT License](LICENSE)**:
 
 - ✅ **Use, modify, redistribute and use commercially — all free** — do whatever you like with the code.
 - 🔖 The only condition: **the copyright notice and license text must stay with the code.**
-- 💌 For collaboration or any question: [open an Issue](https://github.com/ArshiaGalaxy/Vira_TranslatorStudio/issues) or message me — happy to help.
+- 💌 For collaboration or any question: [open an Issue](https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio/issues) or message me — happy to help.
 
 ## 🤝 Contributing
 
