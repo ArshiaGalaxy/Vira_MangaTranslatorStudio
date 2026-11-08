@@ -31,6 +31,35 @@ Image.MAX_IMAGE_PIXELS = 100_000_000
 
 # ── Config helpers ───────────────────────────────────────────────────────────
 
+MASKED_API_KEY = "********"
+
+
+def mask_config_api_keys(cfg: dict) -> dict:
+    """Return a copy with non-empty provider api_key values masked for API responses."""
+    import copy
+
+    out = copy.deepcopy(cfg or {})
+    translator = out.get("translator")
+    if not isinstance(translator, dict):
+        return out
+    for provider in ("openrouter", "gemini", "custom"):
+        card = translator.get(provider)
+        if isinstance(card, dict) and card.get("api_key"):
+            card["api_key"] = MASKED_API_KEY
+    return out
+
+
+def strip_masked_api_keys(data: dict) -> None:
+    """Drop masked api_key values in-place so a round-tripped GET never overwrites stored secrets."""
+    translator = data.get("translator")
+    if not isinstance(translator, dict):
+        return
+    for provider in ("openrouter", "gemini", "custom"):
+        card = translator.get(provider)
+        if isinstance(card, dict) and card.get("api_key") == MASKED_API_KEY:
+            card.pop("api_key", None)
+
+
 
 def _read_seed_config() -> dict:
     """Seed config: studio_engine/config.json if present, else dataclass defaults."""
@@ -299,6 +328,7 @@ def get_global_config() -> dict:
 def update_global_config(data: dict) -> dict:
     allowed = _allowed_config_sections()
     data = _prune_config(data, allowed)
+    strip_masked_api_keys(data)
 
     obj, _ = GlobalSetting.objects.get_or_create(key="config")
     current = obj.value or {}

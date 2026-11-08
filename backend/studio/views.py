@@ -570,7 +570,7 @@ class JobViewSet(viewsets.ReadOnlyModelViewSet):
 
 class ConfigView(APIView):
     def get(self, request):
-        return Response(services.get_global_config())
+        return Response(services.mask_config_api_keys(services.get_global_config()))
 
     def put(self, request):
         if not isinstance(request.data, dict):
@@ -581,7 +581,7 @@ class ConfigView(APIView):
         except ValueError as e:
             return Response({"error": str(e)},
                             status=status.HTTP_400_BAD_REQUEST)
-        return Response(cfg)
+        return Response(services.mask_config_api_keys(cfg))
 
 
 class ConfigTestProviderView(APIView):
