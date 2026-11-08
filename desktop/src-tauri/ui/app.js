@@ -72,6 +72,7 @@ async function init() {
   els.installAi.addEventListener("click", () => {
     els.installAi.disabled = true;
     els.installAi.textContent = "Installing…";
+    clearError();
     invoke("install_ai");
   });
 
@@ -92,6 +93,7 @@ async function init() {
       });
       if (snap.ai_state === "installed") setAiState("installed");
       else if (snap.ai_state === "not_installed") setAiState("not_installed");
+      else setAiState("installing");
     }
   } catch (e) {
     // ignore
@@ -150,9 +152,15 @@ function handleMessage(payload) {
     case "aiinstall": {
       els.title.textContent = stageTitles.aiinstall;
       if (progress !== null && progress !== undefined) setProgress(progress);
-      if (progress >= 100) {
+      if (error) {
+        // Failure: offer a retry (requirement #7). The package cache is
+        // kept, so retrying resumes instead of starting over.
+        setAiState("not_installed");
         els.installAi.disabled = false;
-        els.installAi.textContent = "Install AI";
+        els.installAi.textContent = "Retry install";
+      } else if (progress >= 100) {
+        els.title.textContent = "AI libraries installed";
+        clearError();
         setAiState("installed");
       }
       break;
@@ -198,6 +206,10 @@ function setAiState(state) {
   } else {
     els.aiBadge.textContent = "installing…";
     els.aiBadge.className = "badge";
+    // A snapshot of "installing" means a run is live (state is in-memory
+    // only, so this can't be a stale post-restart value) — block double-clicks.
+    els.installAi.disabled = true;
+    els.installAi.textContent = "Installing…";
   }
 }
 

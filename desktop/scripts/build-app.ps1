@@ -87,6 +87,9 @@ if (-not $SkipPayload) {
         Remove-Item -Recurse -Force
     if (-not (Test-Path "$beDest\manage.py")) { throw "backend staging failed (manage.py missing)" }
     if (-not (Test-Path "$beDest\requirements-core.txt")) { throw "requirements-core.txt missing from staging" }
+    # Launcher-only helper for the resumable AI-package download (used by ai.rs).
+    Copy-Item (Join-Path $desktop "scripts\ai_fetch.py") -Destination $beDest -Force
+    if (-not (Test-Path "$beDest\ai_fetch.py")) { throw "ai_fetch.py staging failed" }
 
     Stage "Payload: Next.js frontend (production standalone)"
     Push-Location $root\frontend
