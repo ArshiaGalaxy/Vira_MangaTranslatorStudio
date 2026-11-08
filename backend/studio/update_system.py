@@ -334,10 +334,9 @@ def apply_update(installer_path: str) -> None:
     if not path.exists():
         raise UpdateError(f"Installer not found: {installer_path}")
 
-    # Run the installer silently (it will replace app files, not user data)
-    # /VERYSILENT suppresses all UI; /SUPPRESSMSGBOXES hides confirmation
+    # Run the NSIS installer silently (it replaces app files, not user data)
     subprocess.Popen(
-        [str(path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
+        [str(path), "/S", "/NCRC", "/NORESTART"],
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
     )
 
