@@ -14,9 +14,9 @@ You feed it a PDF: text gets detected, translated to Persian, the original is in
 
 **[راهنمای فارسی / Persian Guide](README.md)**
 
-<img src="docs/images/screenshot-landing.png" alt="Vira Translator Studio landing page" width="900">
+<img src="docs/images/screenshot-landing.png" alt="Vira Translator Studio — landing page" width="900">
 
-<sub>⬆ The project landing page — real screenshot goes here.</sub>
+<sub>The Vira landing page.</sub>
 
 </div>
 
@@ -80,6 +80,8 @@ If you just want to install and use the app on Windows, you need **none** of the
 > 🤖 AI features (auto OCR, Gemini, LaMa) are optional and install later from **inside the app** via the Install AI button (requires internet).
 >
 > 🖥 Minimum requirement: 64-bit Windows 10/11. If WebView2 is missing, the installer downloads and sets it up itself (the only step that needs internet).
+>
+> 🛠 Want to build the installer yourself? See [desktop/README.md](desktop/README.md).
 
 ### Option 1 — Windows, one click (Core install)
 
