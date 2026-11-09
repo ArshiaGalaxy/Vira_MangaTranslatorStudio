@@ -155,6 +155,19 @@ TYPE_DEFAULTS: dict[str, TypeDefaults] = {
     "custom":    TypeDefaults(size_factor=1.0,  alignment="center",  font_pattern="*Mikhak*"),
 }
 
+# Text types whose default font family follows the user's global Settings font
+# paths (FontConfig.path_normal / path_sfx / path_thinking) instead of the
+# hardcoded patterns above. Types not listed here ("whisper", "system") keep
+# their dedicated patterns — Settings has no slot for them.
+_FONT_SLOT_BY_TYPE: dict[str, str] = {
+    "dialog":    "path_normal",
+    "action":    "path_normal",
+    "custom":    "path_normal",
+    "narration": "path_normal",
+    "sfx":       "path_sfx",
+    "think":     "path_thinking",
+}
+
 
 @dataclass
 class ResolvedStyle:
@@ -185,6 +198,16 @@ def resolve_style(
     defaults = TYPE_DEFAULTS.get(text_type, TYPE_DEFAULTS["dialog"])
 
     fp = font_override
+    if not fp:
+        # 1) User's global Settings font for this type's family (edited in
+        #    Settings, no per-project UI) — must win over hardcoded patterns
+        #    so changing the default font affects all projects, old and new.
+        # 2) Fall back to the type's hardcoded pattern in the fonts dir.
+        slot = _FONT_SLOT_BY_TYPE.get(text_type)
+        if slot and font_config:
+            cfg_path = getattr(font_config, slot)
+            if cfg_path and Path(cfg_path).exists():
+                fp = cfg_path
     if not fp:
         fp = _auto_find_font(defaults.font_pattern, "Vazir.ttf")
 

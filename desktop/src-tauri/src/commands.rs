@@ -54,3 +54,18 @@ pub fn open_logs(state: tauri::State<'_, Mutex<SharedState>>) {
             .status();
     }
 }
+
+/// Open an https link from the launcher footer in the user's default browser.
+/// Restricted to plain https URLs so the command can never be used to launch
+/// file:// or custom-protocol targets.
+#[tauri::command]
+pub fn open_url(url: String) {
+    let url = url.trim();
+    if !(url.starts_with("https://") && !url.contains('"') && !url.contains('\\')) {
+        return;
+    }
+    let _ = std::process::Command::new("rundll32")
+        .arg("url.dll,FileProtocolHandler")
+        .arg(url)
+        .output();
+}

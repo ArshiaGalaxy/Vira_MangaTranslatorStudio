@@ -457,6 +457,28 @@ export default function LandingPage() {
             <LangThemeControls />
           </div>
           <p className="mt-10 text-xs text-faint">{t("landing.copyright")}</p>
+          <p className="mt-2 text-xs text-faint">
+            {t("landing.madeBy")} ·{" "}
+            <a
+              href="https://github.com/ArshiaGalaxy"
+              target="_blank"
+              rel="noreferrer"
+              dir="ltr"
+              className="font-semibold text-muted underline underline-offset-2 transition-colors hover:text-ink"
+            >
+              GitHub
+            </a>{" "}
+            ·{" "}
+            <a
+              href="https://www.youtube.com/channel/UCD3wLfj7OdrHL4vh7P8X8vw"
+              target="_blank"
+              rel="noreferrer"
+              dir="ltr"
+              className="font-semibold text-muted underline underline-offset-2 transition-colors hover:text-ink"
+            >
+              YouTube
+            </a>
+          </p>
         </div>
       </footer>
     </main>

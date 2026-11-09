@@ -2,7 +2,7 @@
 name = "vira"
 version = "1.0.0"
 description = "Vira Manga Translator Studio — desktop launcher"
-authors = ["Vira"]
+authors = ["Arshia"]
 edition = "2021"
 
 [build-dependencies]

@@ -97,6 +97,11 @@ body {
 }
 .linklike:hover { color: var(--text); }
 
+.credit { color: var(--muted); }
+.credit strong { color: var(--text); font-weight: 600; }
+.credit .linklike { text-decoration: none; }
+.credit .linklike:hover { text-decoration: underline; }
+
 .panel {
   padding: 30px 34px;
   display: flex;

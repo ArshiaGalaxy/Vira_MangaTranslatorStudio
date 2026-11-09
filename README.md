@@ -229,6 +229,15 @@ pip install -r requirements.txt
 - 🔖 تنها شرط: **نشانی کپی‌رایت و متن لایسنس باید همراه کد باقی بماند.**
 - 💌 برای همکاری یا هر سؤالی: [Issue باز کنید](https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio/issues) یا به من پیام بده — خوشحال می‌شم کمک کنم.
 
+## 👤 سازنده
+
+**آرشیا (Arshia)** — سازنده و توسعه‌دهندهٔ ویرا.
+
+- 🐙 GitHub: [@ArshiaGalaxy](https://github.com/ArshiaGalaxy)
+- ▶️ YouTube: [کانال آرشیا](https://www.youtube.com/channel/UCD3wLfj7OdrHL4vh7P8X8vw)
+
+برای سؤال، همکاری، یا دیدن پروژه‌های دیگر من، از همین دو مسیر باهام در ارتباط باش.
+
 ## 🤝 مشارکت
 
 مشارکت باز و ساده است — لطفاً اول [CONTRIBUTING.md](CONTRIBUTING.md) را بخوان (کوتاه است)، بعد یک Issue باز کن و پس از هم‌نظر شدن، Pull Request بفرست.
@@ -237,7 +246,7 @@ pip install -r requirements.txt
 
 <div align="center">
 
-ساخته‌شده با ❤️ برای جامعهٔ فارسی‌زبان
+ساخته‌شده با ❤️ برای جامعهٔ فارسی‌زبان — به دست **[آرشیا](https://github.com/ArshiaGalaxy)** ([GitHub](https://github.com/ArshiaGalaxy) · [YouTube](https://www.youtube.com/channel/UCD3wLfj7OdrHL4vh7P8X8vw))
 
 ⭐ اگر به کارت اومد، یک **Star** به پروژه بده — بهم خیلی انرژی میده!
 

@@ -238,6 +238,9 @@ export const dict = {
     fa: "اتوماسیون ترجمه برای مانگا و تیم‌های اسکنلیشن فارسی.",
   },
   "landing.copyright": { en: "© 2026 Vira Studio", fa: "© 2026 ویرا استودیو" },
+  "landing.madeBy": { en: "Created by Arshia", fa: "ساختهٔ آرشیا" },
+
+  "set.madeBy": { en: "Made by Arshia", fa: "ساختهٔ آرشیا" },
 
   "ws.noImage": {
     en: "No page image — run Extract OCR first.",

@@ -56,6 +56,13 @@ async function init() {
 
   $("open-logs").addEventListener("click", () => invoke("open_logs"));
   $("open-logs-2").addEventListener("click", () => invoke("open_logs"));
+
+  // Footer credits: open the author's links in the user's browser.
+  for (const a of document.querySelectorAll("button[data-url]")) {
+    a.addEventListener("click", () =>
+      invoke("open_url", { url: a.getAttribute("data-url") }),
+    );
+  }
   els.retry.addEventListener("click", () => {
     clearError();
     stageOrder.forEach((s) => markStage(s, null));

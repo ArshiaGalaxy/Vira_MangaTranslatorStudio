@@ -217,6 +217,15 @@ Released under **[MIT License](LICENSE)**:
 - 🔖 The only condition: **the copyright notice and license text must stay with the code.**
 - 💌 For collaboration or any question: [open an Issue](https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio/issues) or message me — happy to help.
 
+## 👤 Author
+
+**[Arshia](https://github.com/ArshiaGalaxy)** — creator and maintainer of Vira.
+
+- 🐙 GitHub: [@ArshiaGalaxy](https://github.com/ArshiaGalaxy)
+- ▶️ YouTube: [channel](https://www.youtube.com/channel/UCD3wLfj7OdrHL4vh7P8X8vw)
+
+Questions, collaboration, or just want to see what else I build — reach me there.
+
 ## 🤝 Contributing
 
 Contributions are welcome and simple — please read [CONTRIBUTING.md](CONTRIBUTING.md) first (it's short), open an Issue, and send a Pull Request once we've aligned.
@@ -225,7 +234,7 @@ Contributions are welcome and simple — please read [CONTRIBUTING.md](CONTRIBUT
 
 <div align="center">
 
-Built with ❤️ for the Persian-speaking community
+Built with ❤️ for the Persian-speaking community — by **[Arshia](https://github.com/ArshiaGalaxy)** ([GitHub](https://github.com/ArshiaGalaxy) · [YouTube](https://www.youtube.com/channel/UCD3wLfj7OdrHL4vh7P8X8vw))
 
 ⭐ If this helps you, give the project a **Star** — it really motivates!
 

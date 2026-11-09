@@ -28,6 +28,8 @@
   "bundle": {
     "active": true,
     "category": "GraphicsAndDesign",
+    "publisher": "Arshia",
+    "homepage": "https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio",
     "shortDescription": "Vira Manga Translator Studio",
     "longDescription": "Vira Manga Translator Studio — desktop launcher for the Django backend and Next.js studio frontend.",
     "icon": [

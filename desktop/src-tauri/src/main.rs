@@ -36,6 +36,7 @@ fn main() {
             commands::retry_setup,
             commands::install_ai,
             commands::open_logs,
+            commands::open_url,
         ])
         .setup(|app| {
             // Job object: all child processes Vira spawns are reaped if Vira dies.
