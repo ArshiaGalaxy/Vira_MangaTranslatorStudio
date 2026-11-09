@@ -239,10 +239,10 @@ pip install -r requirements.txt
 
 ## 👤 سازنده
 
-**آرشیا (Arshia)** — سازنده و توسعه‌دهندهٔ ویرا.
+**عرشیا (Arshia)** — سازنده و توسعه‌دهندهٔ ویرا.
 
 - 🐙 GitHub: [@ArshiaGalaxy](https://github.com/ArshiaGalaxy)
-- ▶️ YouTube: [کانال آرشیا](https://www.youtube.com/channel/UCD3wLfj7OdrHL4vh7P8X8vw)
+- ▶️ YouTube: [کانال عرشیا](https://www.youtube.com/channel/UCD3wLfj7OdrHL4vh7P8X8vw)
 
 برای سؤال، همکاری، یا دیدن پروژه‌های دیگر من، از همین دو مسیر باهام در ارتباط باش.
 
@@ -254,7 +254,7 @@ pip install -r requirements.txt
 
 <div align="center">
 
-ساخته‌شده با ❤️ برای جامعهٔ فارسی‌زبان — به دست **[آرشیا](https://github.com/ArshiaGalaxy)** ([GitHub](https://github.com/ArshiaGalaxy) · [YouTube](https://www.youtube.com/channel/UCD3wLfj7OdrHL4vh7P8X8vw))
+ساخته‌شده با ❤️ برای جامعهٔ فارسی‌زبان — به دست **[عرشیا](https://github.com/ArshiaGalaxy)** ([GitHub](https://github.com/ArshiaGalaxy) · [YouTube](https://www.youtube.com/channel/UCD3wLfj7OdrHL4vh7P8X8vw))
 
 ⭐ اگر به کارت اومد، یک **Star** به پروژه بده — بهم خیلی انرژی میده!
 
