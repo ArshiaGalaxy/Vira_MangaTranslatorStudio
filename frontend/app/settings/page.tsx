@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -21,14 +22,15 @@ import {
   Zap,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { FontInfo } from "@/lib/types";
-import { DictKey, useI18n } from "@/lib/i18n";
+import type { FontInfo } from "@/lib/types";
+import { useI18n } from "@/lib/i18n";
+import type { DictKey } from "@/lib/i18n";
 import { useToast } from "@/lib/theme";
 import { Btn, IconBtn, LangThemeControls } from "@/components/ui";
+import { FontPicker } from "@/components/workspace/FontPicker";
 
 const SECTIONS = [
   { key: "translator", icon: <Languages size={15} /> },
-  { key: "ocr", icon: <ScanText size={15} /> },
   { key: "font", icon: <Type size={15} /> },
   { key: "chapter_id", icon: <Sparkles size={15} /> },
   { key: "inpaint", icon: <Palette size={15} /> },
@@ -36,7 +38,7 @@ const SECTIONS = [
   { key: "updates", icon: <Zap size={15} /> },
 ] as const;
 
-const FONT_PATH_FIELDS = new Set(["path_normal", "path_sfx", "path_thinking"]);
+const FONT_PATH_FIELDS = new Set(["path_normal"]);
 const LONG_TEXT_FIELDS = new Set(["system_prompt", "user_prompt"]);
 
 /** Raw config keys are opaque; these get friendly bilingual labels.
@@ -55,12 +57,8 @@ const FIELD_LABELS: Record<string, DictKey> = {
   "gemini.model": "set.model",
   base_url: "set.baseUrl",
   path_normal: "set.fontNormal",
-  path_sfx: "set.fontSfx",
-  path_thinking: "set.fontThinking",
   size_min: "set.fontMin",
   size_max: "set.fontMax",
-  stroke_width: "set.strokeWidth",
-  stroke_color: "set.strokeColor",
   dpi: "set.dpi",
   method: "set.method",
   color: "set.stampColor",
@@ -90,52 +88,9 @@ const SECTION_GROUPS: Record<string, { key: string; fields: string[] }[]> = {
     },
     { key: "prompts", fields: ["system_prompt", "user_prompt"] },
   ],
-  ocr: [
-    {
-      key: "engine",
-      fields: [
-        "pdf_type",
-        "ocr_version",
-        "dpi",
-        "confidence_min",
-        "text_rec_score_thresh",
-        "ocr_enable_angle_cls",
-      ],
-    },
-    {
-      key: "detection",
-      fields: [
-        "dbscan_eps",
-        "duplicate_iou_threshold",
-        "long_strip_aspect_ratio_threshold",
-        "size_consistency_threshold",
-        "boundary_region_height",
-        "boundary_dialogue_min_height",
-        "angle_merge_threshold",
-        "ocr_det_limit_side_len",
-        "ocr_det_unclip_ratio",
-        "ocr_det_box_thresh",
-        "ocr_det_thresh",
-      ],
-    },
-    {
-      key: "pages",
-      fields: [
-        "ocr_max_side",
-        "standard_max_side",
-        "max_chunk_height",
-        "cross_page_height",
-        "enable_cross_page_merge",
-      ],
-    },
-    {
-      key: "strips",
-      fields: ["manhwa_concat_width", "manhwa_concat_overlap"],
-    },
-  ],
   font: [
-    { key: "fonts", fields: ["path_normal", "path_sfx", "path_thinking"] },
-    { key: "size", fields: ["size_max", "size_min", "stroke_width", "tall_render_chunk_size"] },
+    { key: "fonts", fields: ["path_normal"] },
+    { key: "size", fields: ["size_max", "size_min"] },
   ],
   inpaint: [
     {
@@ -145,10 +100,6 @@ const SECTION_GROUPS: Record<string, { key: string; fields: string[] }[]> = {
     { key: "opencv", fields: ["opencv_radius", "opencv_method"] },
     { key: "autoMode", fields: ["cv_auto_solid_ratio", "cv_auto_color_bucket", "cv_auto_mask_pad"] },
     { key: "neural", fields: ["lama_device"] },
-    {
-      key: "pcleaner",
-      fields: ["pcleaner_profile", "pcleaner_cli_path"],
-    },
   ],
   typography: [
     {
@@ -193,7 +144,6 @@ function enumOptions(
         { value: "cv_auto", label: t("set.optAutoInpaint") },
         { value: "opencv", label: "OpenCV" },
         { value: "color", label: t("set.optSolid") },
-        { value: "pcleaner", label: "PCleaner" },
       ]);
     case "opencv_method":
       return withCurrent([
@@ -203,6 +153,10 @@ function enumOptions(
     default:
       return null;
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isColor(v: unknown): boolean {
@@ -249,6 +203,20 @@ type UpdatePrefs = {
   download_verified: boolean;
 };
 
+type UpdateState = {
+  available: boolean;
+  current: string;
+  version: string;
+  release_notes: string;
+  mandatory: boolean;
+  file_size: number;
+  published_at: string;
+  download_url: string;
+  sha256: string;
+  error?: string;
+  reason?: string;
+};
+
 export default function SettingsPage() {
   const { t } = useI18n();
   const toast = useToast();
@@ -258,45 +226,22 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState("");
   const [dirty, setDirty] = useState(0);
+  const revisionRef = useRef(0);
   const [activeSection, setActiveSection] = useState("translator");
 
   // ── Update state ─────────────────────────────────────────────────────
-  const [updateState, setUpdateState] = useState<{
-    available: boolean;
-    current: string;
-    version: string;
-    release_notes: string;
-    mandatory: boolean;
-    file_size: number;
-    published_at: string;
-    download_url: string;
-    sha256: string;
-    error?: string;
-    reason?: string;
-  } | null>(null);
-  const [updatePrefs, setUpdatePrefsLocal] = useState<{
-    enabled: boolean;
-    last_check: string | null;
-    last_version: string | null;
-    skipped_version: string | null;
-    postpone_until: string | null;
-    update_ready: boolean;
-    pending_version: string | null;
-    pending_url: string | null;
-    pending_hash: string | null;
-    pending_notes: string;
-    download_path: string | null;
-    download_complete: boolean;
-    download_verified: boolean;
-  } | null>(null);
+  const [updateState, setUpdateState] = useState<UpdateState | null>(null);
+  const [updatePrefs, setUpdatePrefsLocal] = useState<UpdatePrefs | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState({ loaded: 0, total: 0 });
+  const [applyingUpdate, setApplyingUpdate] = useState(false);
 
   // Load config, fonts, and update prefs
   const load = useCallback(async () => {
     try {
-      setConfig(await api.get("/api/config"));
+      const loadedConfig = await api.get<Record<string, Record<string, unknown>>>("/api/config");
+      setConfig(loadedConfig);
+      revisionRef.current = 0;
       setDirty(0);
     } catch (err) {
       toast.push(err instanceof Error ? err.message : t("toast.loadFailed"), "error");
@@ -312,16 +257,21 @@ export default function SettingsPage() {
       ]);
       setUpdatePrefsLocal(prefs);
       if (check.available) {
-        setUpdateState(check as {
-          available: boolean;
-          current: string;
-          version: string;
-          release_notes: string;
-          mandatory: boolean;
-          file_size: number;
-          published_at: string;
-          download_url: string;
-          sha256: string;
+        setUpdateState({
+          available: true,
+          current: check.current ?? "",
+          version: check.version ?? "",
+          release_notes: check.release_notes ?? "",
+          mandatory: check.mandatory ?? false,
+          file_size:
+            typeof check.file_size === "number" && Number.isFinite(check.file_size)
+              ? Math.max(0, check.file_size)
+              : 0,
+          published_at: check.published_at ?? "",
+          download_url: check.download_url ?? "",
+          sha256: check.sha256 ?? "",
+          error: check.error,
+          reason: check.reason,
         });
       } else {
         setUpdateState(null);
@@ -332,7 +282,7 @@ export default function SettingsPage() {
     } finally {
       setCheckingUpdate(false);
     }
-  }, [t, toast]);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -344,17 +294,22 @@ export default function SettingsPage() {
   }, [load, loadUpdates]);
 
   function setField(section: string, field: string, value: unknown) {
+    revisionRef.current += 1;
     setDirty((d) => d + 1);
     setConfig((c) => (c ? { ...c, [section]: { ...c[section], [field]: value } } : c));
   }
 
   async function save() {
-    if (!config) return;
+    if (!config || saving) return;
+    const configSnapshot = config;
+    const savedRevision = revisionRef.current;
     setSaving(true);
     try {
-      await api.put("/api/config", config);
+      await api.put("/api/config", configSnapshot);
       setSavedAt(new Date().toLocaleTimeString());
-      setDirty(0);
+      // Do not hide the unsaved marker if the user edited fields while the
+      // request was in flight. Those newer changes were not in configSnapshot.
+      setDirty(Math.max(0, revisionRef.current - savedRevision));
       toast.push(t("toast.saved"), "success");
     } catch (err) {
       toast.push(err instanceof Error ? err.message : t("toast.saveFailed"), "error");
@@ -404,29 +359,44 @@ export default function SettingsPage() {
   }
 
   async function downloadUpdate() {
-    if (!updateState) return;
+    if (!updateState || downloadingUpdate) return;
     setDownloadingUpdate(true);
-    setDownloadProgress({ loaded: 0, total: 0 });
     try {
-      const result = await api.post<{ path: string; version: string }>("/api/update/download", {});
+      await api.post<{ path: string; version: string }>("/api/update/download", {});
       const prefs = await api.get<UpdatePrefs>("/api/update/prefs");
       setUpdatePrefsLocal(prefs);
+      if (!prefs.download_complete || !prefs.download_verified || !prefs.download_path) {
+        toast.push(t("toast.actionFailed"), "error");
+        return;
+      }
       toast.push(t("set.updateDownloaded"), "success");
     } catch (err) {
       toast.push(err instanceof Error ? err.message : t("toast.actionFailed"), "error");
     } finally {
       setDownloadingUpdate(false);
-      setDownloadProgress({ loaded: 0, total: 0 });
     }
   }
 
   async function applyUpdate() {
-    if (!updatePrefs?.download_path) return;
+    // Defense in depth: never ask the installer to apply an incomplete or
+    // unverified download. The backend must enforce the same checks itself.
+    if (
+      !updatePrefs?.download_complete ||
+      !updatePrefs.download_verified ||
+      !updatePrefs.download_path ||
+      applyingUpdate
+    ) {
+      return;
+    }
+
+    setApplyingUpdate(true);
     try {
       await api.post<{ status: string }>("/api/update/apply", { path: updatePrefs.download_path });
-      // apply_update exits the process, so this normally never returns
+      // The backend normally exits the app after successfully starting the installer.
     } catch (err) {
       toast.push(err instanceof Error ? err.message : t("toast.actionFailed"), "error");
+    } finally {
+      setApplyingUpdate(false);
     }
   }
 
@@ -436,8 +406,11 @@ export default function SettingsPage() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  const { groups, nestedObjects } = useMemo(() => {
-    if (!config) return { groups: [] as FieldGroup[], nestedObjects: [] as [string, unknown][] };
+  const { groups, nestedObjects } = useMemo<{
+    groups: FieldGroup[];
+    nestedObjects: [string, Record<string, unknown>][];
+  }>(() => {
+    if (!config) return { groups: [], nestedObjects: [] };
     const entries = Object.entries(config[activeSection] ?? {});
     const byName = new Map(entries);
     const defs = SECTION_GROUPS[activeSection] ?? [];
@@ -446,7 +419,7 @@ export default function SettingsPage() {
     if (defs.length === 0) {
       // No subsections defined: one flat grid, no headings.
       groups = [
-        { key: "", items: entries.filter(([, v]) => typeof v !== "object" || v === null) },
+        { key: "", items: entries.filter(([, v]) => !isRecord(v) && !Array.isArray(v)) },
       ];
     } else {
       groups = defs
@@ -459,12 +432,15 @@ export default function SettingsPage() {
         .filter((g) => g.items.length > 0);
       const listed = new Set(defs.flatMap((g) => g.fields));
       const rest = entries.filter(
-        ([f, v]) => !listed.has(f) && (typeof v !== "object" || v === null),
+        ([f, v]) => !listed.has(f) && !isRecord(v) && !Array.isArray(v),
       );
-      if (rest.length > 0) groups.push({ key: "other", items: rest });
     }
 
-    const nestedObjects = entries.filter(([, v]) => typeof v === "object" && v !== null);
+    // Nested provider/config sections are objects; primitive values belong
+    // in the ordinary field groups above.
+    const nestedObjects = entries.filter(
+      ([, value]) => isRecord(value),
+    ) as [string, Record<string, unknown>][];
     return { groups, nestedObjects };
   }, [config, activeSection]);
 
@@ -548,8 +524,8 @@ export default function SettingsPage() {
           ))}
 
           {nestedObjects.map(([objKey, obj]) => {
-            const entries = Object.entries(obj as Record<string, unknown>).filter(
-              ([, v]) => typeof v !== "object",
+            const entries = Object.entries(obj).filter(
+              ([, value]) => !isRecord(value) && !Array.isArray(value),
             );
             const providerKey =
               objKey === "openrouter" || objKey === "gemini" || objKey === "custom"
@@ -564,10 +540,10 @@ export default function SettingsPage() {
                   name={providerKey}
                   entries={entries}
                   isActive={String(config[activeSection].provider ?? "") === objKey}
-                  obj={obj as Record<string, unknown>}
+                  obj={obj}
                   setField={setField}
                   section={activeSection}
-                  translatorSection={config[activeSection]}
+                  translatorSection={config[activeSection] ?? {}}
                 />
               );
             }
@@ -692,14 +668,16 @@ export default function SettingsPage() {
               </div>
 
               <div className="mt-4 space-y-3">
-                {updatePrefs?.download_complete && updatePrefs?.download_path ? (
+                {updatePrefs?.download_complete &&
+                updatePrefs.download_verified &&
+                updatePrefs.download_path ? (
                   <>
                     <button
                       onClick={() => void applyUpdate()}
-                      disabled={downloadingUpdate}
+                      disabled={downloadingUpdate || applyingUpdate}
                       className="w-full btn btn-primary"
                     >
-                      {downloadingUpdate ? (
+                      {applyingUpdate ? (
                         <>
                           <Loader2 size={14} className="animate-spin mr-2" />
                           {t("set.installing")}
@@ -726,7 +704,6 @@ export default function SettingsPage() {
                         <>
                           <Loader2 size={14} className="animate-spin mr-2" />
                           {t("set.downloading")}
-                          {downloadProgress.total > 0 ? ` (${Math.round((downloadProgress.loaded / downloadProgress.total) * 100)}%)` : ""}
                         </>
                       ) : (
                         <>
@@ -815,6 +792,12 @@ function FieldRow({
   const { t } = useI18n();
   const id = useId();
   const [showKey, setShowKey] = useState(false);
+  const [numberDraft, setNumberDraft] = useState(
+    typeof value === "number" ? String(value) : "",
+  );
+  useEffect(() => {
+    if (typeof value === "number") setNumberDraft(String(value));
+  }, [value]);
   const leaf = field.includes(".") ? field.split(".").pop()! : field;
   const labelKey = FIELD_LABELS[field] ?? FIELD_LABELS[leaf];
   const hintKey = FIELD_HINTS[leaf];
@@ -822,7 +805,7 @@ function FieldRow({
   const wide = LONG_TEXT_FIELDS.has(leaf) || leaf === "api_key";
   const enums = enumOptions(leaf, value, t);
 
-  let control: React.ReactNode;
+  let control: ReactNode;
   if (typeof value === "boolean") {
     control = (
       <label htmlFor={id} className="inline-flex w-fit cursor-pointer items-center">
@@ -850,30 +833,15 @@ function FieldRow({
   } else if (isColor(value)) {
     control = <ColorField id={id} value={String(value)} onChange={onChange} />;
   } else if (FONT_PATH_FIELDS.has(leaf)) {
+    const isNormal = leaf === "path_normal";
     control = (
-      <div className="relative">
-        <select
-          id={id}
-          className="input-base appearance-none pe-9"
-          value={typeof value === "string" ? value.split(/[\\/]/).pop() ?? "" : ""}
-          onChange={(e) => {
-            const f = fonts.find(
-              (x) => x.name === e.target.value.replace(/\.ttf$|\.otf$/i, ""),
-            );
-            onChange(f ? f.path : "");
-          }}
-        >
-          <option value="">{t("set.autoDetect")}</option>
-          {fonts.map((f) => (
-            <option key={f.name} value={`${f.name}.ttf`}>
-              {f.name}
-            </option>
-          ))}
-        </select>
-        <ChevronDown
-          size={14}
-          aria-hidden
-          className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-faint"
+      <div id={id}>
+        <FontPicker
+          fonts={fonts}
+          value={typeof value === "string" ? value : ""}
+          onChange={(p) => onChange(p)}
+          emptyLabel={isNormal ? t("set.fontDefault") : t("set.autoDetect")}
+          defaultPreviewName={isNormal ? "Mikhak" : undefined}
         />
       </div>
     );
@@ -884,8 +852,8 @@ function FieldRow({
         dir="auto"
         rows={leaf === "system_prompt" ? 10 : 6}
         className="input-base font-mono !text-xs leading-relaxed"
-        defaultValue={String(value ?? "")}
-        onBlur={(e) => onChange(e.target.value)}
+        value={String(value ?? "")}
+        onChange={(e) => onChange(e.target.value)}
       />
     );
   } else if (leaf === "api_key") {
@@ -938,14 +906,29 @@ function FieldRow({
     control = (
       <input
         id={id}
-        type="number"
-        step="any"
+        type="text"
+        inputMode="decimal"
         dir="ltr"
         className="input-base"
-        value={value}
-        onChange={(e) =>
-          onChange(Number.isFinite(Number(e.target.value)) ? Number(e.target.value) : 0)
-        }
+        value={numberDraft}
+        onChange={(e) => {
+          const raw = e.target.value;
+          setNumberDraft(raw);
+
+          // Keep intermediate values (empty string, minus sign, decimal point)
+          // local so users can enter decimals and negative values naturally.
+          if (["", "-", ".", "-.", "+"].includes(raw.trim())) return;
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) onChange(parsed);
+        }}
+        onBlur={() => {
+          const parsed = Number(numberDraft);
+          setNumberDraft(
+            numberDraft.trim() !== "" && Number.isFinite(parsed)
+              ? String(parsed)
+              : String(value),
+          );
+        }}
       />
     );
   } else {

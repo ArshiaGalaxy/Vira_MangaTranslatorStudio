@@ -699,6 +699,8 @@ export const dict = {
   "set.grp.neural": { en: "Neural (LaMa)", fa: "شبکه عصبی (LaMa)" },
   "set.grp.pcleaner": { en: "PCleaner", fa: "PCleaner" },
   "set.grp.other": { en: "Other", fa: "سایر" },
+  "set.advanced": { en: "Advanced", fa: "پیشرفته" },
+  "set.fontDefault": { en: "Default (Mikhak)", fa: "پیش‌فرض (میخک)" },
 
   /* Field labels + hints for the fields users touch most; unlisted fields
      fall back to a humanized version of the raw config key. */

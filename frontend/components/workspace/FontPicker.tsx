@@ -15,18 +15,22 @@ function stemOf(path: string): string {
 
 interface Props {
   fonts: FontInfo[];
-  /** Stored font_override value (an absolute path), or "" to inherit. */
+  /** Stored font value (an absolute path), or "" for the default/empty choice. */
   value: string;
   onChange: (path: string) => void;
+  /** Label for the empty/default row (overrides "inherit"). */
+  emptyLabel?: string;
+  /** When value is empty, preview this font from the list as the default. */
+  defaultPreviewName?: string;
 }
 
 /**
- * Per-block font picker. A native <select> can't render a different font in
- * each option, so this shows a custom dropdown where every row previews its
- * sample in that actual font (loaded via the FontFace API, same source the
- * canvas preview uses).
+ * Font picker with a per-font sample preview. A native <select> can't render a
+ * different font in each option, so this shows a custom dropdown where every
+ * row previews its sample in that actual font (loaded via the FontFace API,
+ * same source the canvas preview uses).
  */
-export function FontPicker({ fonts, value, onChange }: Props) {
+export function FontPicker({ fonts, value, onChange, emptyLabel, defaultPreviewName }: Props) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   // font name -> loaded CSS family (fills in as font files finish loading)
@@ -34,26 +38,34 @@ export function FontPicker({ fonts, value, onChange }: Props) {
   /** Any font file failed to load while the dropdown was open. */
   const [failed, setFailed] = useState(false);
   const [retryTick, setRetryTick] = useState(0);
+  const effectiveEmptyLabel = emptyLabel ?? t("set.inherit");
   const currentStem = value ? stemOf(value) : "";
   const currentFont = useMemo(
     () => fonts.find((f) => f.name === currentStem) ?? null,
     [fonts, currentStem],
   );
+  const defaultFont = useMemo(
+    () =>
+      defaultPreviewName
+        ? fonts.find((f) => f.name.toLowerCase() === defaultPreviewName.toLowerCase()) ?? null
+        : null,
+    [fonts, defaultPreviewName],
+  );
+  const displayFont = currentFont || (!value ? defaultFont : null);
 
-  // Load the current font (if any) even while closed, so the button itself
-  // previews it.
+  // Load the display font (current or default preview) so the button previews it.
   useEffect(() => {
-    if (!currentFont) return;
+    if (!displayFont) return;
     let cancelled = false;
-    loadFont(currentFont.url)
+    loadFont(displayFont.url)
       .then((family) => {
-        if (!cancelled) setFamilies((m) => ({ ...m, [currentFont.name]: family }));
+        if (!cancelled) setFamilies((m) => ({ ...m, [displayFont.name]: family }));
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [currentFont]);
+  }, [displayFont]);
 
   // Opening the dropdown loads every font so each row previews its own.
   // Failed loads surface once as an inline retry row (not per-row noise).
@@ -95,19 +107,19 @@ export function FontPicker({ fonts, value, onChange }: Props) {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title={currentFont ? currentFont.name : t("set.inherit")}
+        title={currentFont ? currentFont.name : effectiveEmptyLabel}
         className="flex w-full items-center gap-1.5 rounded-lg border border-line bg-elev px-2.5 py-1.5 text-xs outline-none transition-colors hover:border-primary focus:border-primary"
       >
-        {currentFont && families[currentFont.name] ? (
+        {displayFont && families[displayFont.name] ? (
           <span
             className="fa-text min-w-0 flex-1 truncate rounded-md bg-[#f8f5ec] px-1.5 py-0.5 text-[13px] leading-snug text-[#141824]"
             dir="rtl"
-            style={{ fontFamily: families[currentFont.name] }}
+            style={{ fontFamily: families[displayFont.name] }}
           >
-            {currentFont.name}
+            {currentFont ? currentFont.name : effectiveEmptyLabel}
           </span>
         ) : (
-          <span className="min-w-0 flex-1 truncate">{currentFont ? currentFont.name : t("set.inherit")}</span>
+          <span className="min-w-0 flex-1 truncate">{currentFont ? currentFont.name : effectiveEmptyLabel}</span>
         )}
         <ChevronDown size={13} aria-hidden className="pointer-events-none shrink-0 text-faint" />
       </button>
@@ -124,11 +136,11 @@ export function FontPicker({ fonts, value, onChange }: Props) {
             <button
               type="button"
               role="option"
-              aria-selected={!currentFont}
+              aria-selected={!currentStem}
               onClick={() => pick("")}
               className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-start text-base hover:bg-surface3"
             >
-              {t("set.inherit")}
+              {effectiveEmptyLabel}
             </button>
             {fonts.map((f) => (
               <button

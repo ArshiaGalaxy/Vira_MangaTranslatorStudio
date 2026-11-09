@@ -150,11 +150,20 @@ def _prune_config(data: dict, allowed: dict[str, set[str]],
 
 def _validate_config_paths(cfg: dict) -> None:
     """Reject config values that would point the engine at arbitrary files."""
+    fonts_dir = Path(settings.FONTS_DIR).resolve()
     font = cfg.get("font") or {}
     for key in ("path_normal", "path_sfx", "path_thinking"):
         val = font.get(key)
-        if val and not _path_inside(val, Path(settings.FONTS_DIR)):
-            raise ValueError(f"font.{key} must point inside the fonts directory")
+        if not val:
+            continue
+        # Accept if it resolves inside the fonts dir. Also accept a stale/bare
+        # path whose filename exists directly in the fonts dir (portable across
+        # moves or dir layout differences) — still constrained to fonts_dir.
+        if _path_inside(str(val), fonts_dir):
+            continue
+        if (fonts_dir / Path(str(val)).name).resolve().is_file():
+            continue
+        raise ValueError(f"font.{key} must point inside the fonts directory")
 
     inpaint = cfg.get("inpaint") or {}
     cli = inpaint.get("pcleaner_cli_path")
@@ -376,6 +385,15 @@ def _get_config(project: Project):
                 combined[k] = sub
             elif not (v == "" and combined.get(k)):
                 combined[k] = v
+        # Font sizing bounds are edited in global Settings (no per-project UI)
+        # and projects snapshot font_config once at creation, so a stale
+        # snapshot would silently ignore Settings changes. Keep the global
+        # values authoritative for every project (fixes existing projects too).
+        if section == "font":
+            global_font = base.get("font") or {}
+            for k in ("size_min", "size_max"):
+                if k in global_font:
+                    combined[k] = global_font[k]
         return combined
 
     raw = {
