@@ -1,11 +1,11 @@
 {
   "version": "1.0.0",
   "download_url": "https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio/releases/download/v1.0.0/Vira_1.0.0_x64-setup.exe",
-  "sha256": "",
-  "release_notes": "Vira MangaTranslatorStudio 1.0.0. IMPORTANT (maintainer): before publishing this release, rebuild the installer from the production-readiness branch, compute SHA-256 + file size of the new Vira_1.0.0_x64-setup.exe, fill sha256/file_size/published_at here, then commit and tag v1.0.0 with the installer as the release asset.",
+  "sha256": "a2c357342fbdc432e8c2300ecd5084afd1d93245e58c9078c050345e5fac6c0d",
+  "release_notes": "Vira MangaTranslatorStudio 1.0.0 — first public release. Full offline Windows installer (64-bit): Django backend, Next.js studio frontend, Python and Node runtimes and all core libraries bundled. Optional AI recognition/inpainting installs on first launch with resumable, SHA-verified downloads and per-host proxy routing.",
   "published_at": "",
   "minimum_version": "0.0.0",
   "mandatory": false,
-  "file_size": 0,
+  "file_size": 138839408,
   "platform": "windows-x64"
 }

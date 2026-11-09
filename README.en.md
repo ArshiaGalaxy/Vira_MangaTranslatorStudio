@@ -61,7 +61,7 @@ A full-stack, local-first studio for Persian manga/manhwa translation:
 | 🔑 Translation API key (optional) | — | [OpenRouter](https://openrouter.ai/) or [Gemini](https://aistudio.google.com/apikey) |
 | 🤖 Optional AI features | Run `install-ai.bat` on Windows | see below 👇 |
 
-> 🪟 Windows, Linux and macOS are all supported; on Windows the included **`start.bat`** does everything (`start-lan.bat` additionally lets your phone/tablet use the app over the same WiFi).
+> 🪟 The desktop app targets **64-bit Windows** (Windows 10/11 recommended; Windows ARM64 works via emulation; **32-bit Windows is not supported**). Running from source is currently tested on Windows — the Linux/macOS port is on the roadmap 👇
 
 ## 🚀 Quick start: 0 to 100
 
@@ -216,6 +216,14 @@ Released under **[MIT License](LICENSE)**:
 - ✅ **Use, modify, redistribute and use commercially — all free** — do whatever you like with the code.
 - 🔖 The only condition: **the copyright notice and license text must stay with the code.**
 - 💌 For collaboration or any question: [open an Issue](https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio/issues) or message me — happy to help.
+
+## 🗺 Roadmap
+
+- ✅ **Windows 64-bit** — installer shipped and tested
+- 🔄 **Windows ARM64** — runs now under emulation; a native build is under review
+- 🔜 **Linux** — on the roadmap (needs a new payload packaging for its runtime)
+- 🔜 **macOS** — on the roadmap (needs Apple Developer account for signing)
+- ⛔ **32-bit Windows, Android, iOS** — not supportable with the current architecture
 
 ## 👤 Author
 
