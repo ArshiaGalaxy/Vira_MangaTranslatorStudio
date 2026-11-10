@@ -1151,8 +1151,7 @@ def _inpaint_pages(ctx: JobContext, project: Project, config,
 
     for n, (idx, p, img) in enumerate(todo):
         ctx.check_cancelled()
-        block_regions = _page_regions(p)
-        mark_regions = mask_regions.get(p.page_number, [])
+        regions = _page_regions(p) + mask_regions.get(p.page_number, [])
 
         def _fmt_region(r) -> str:
             tb = r.get("text_boxes") or []
@@ -1160,7 +1159,6 @@ def _inpaint_pages(ctx: JobContext, project: Project, config,
             origin = "bbox" if not first else f"poly@{list(first)}"
             return f"({r['x1']},{r['y1']},{r['x2']},{r['y2']})[{origin}]"
 
-        regions = block_regions + mark_regions
         sizes = ", ".join(_fmt_region(r) for r in regions[:6])
         more = f" +{len(regions) - 6} more" if len(regions) > 6 else ""
         ctx.log(f"Page {p.page_number}: inpainting {len(regions)} region(s) [{sizes}{more}]")
@@ -1177,32 +1175,20 @@ def _inpaint_pages(ctx: JobContext, project: Project, config,
                 # vs LaMa decisions, quality fallbacks) → job log.
                 ctx.log(f"  ↳ p{_pg}: {msg}")
 
-            # Two passes so manual marks don't share the auto detector's mask
-            # dilation: detected bboxes need the configured pad to absorb
-            # detector slop, but a user-drawn stroke polygon is already exact,
-            # and padding it erases ~36px beyond what was painted. mask_pad=0
-            # leaves only the base padding (~6px) around the stroke.
-            current = img
-            for group, mask_pad in (
-                (block_regions, config.inpaint.cv_auto_mask_pad),
-                (mark_regions, 0),
-            ):
-                if not group:
-                    continue
-                current = inpaint_batch(
-                    current, group,
-                    pad_x=config.inpaint.padding_x,
-                    pad_y=config.inpaint.padding_y,
-                    method=config.inpaint.method,
-                    opencv_radius=config.inpaint.opencv_radius,
-                    opencv_method=config.inpaint.opencv_method,
-                    device=config.inpaint.lama_device,
-                    solid_ratio=config.inpaint.cv_auto_solid_ratio,
-                    color_bucket=config.inpaint.cv_auto_color_bucket,
-                    mask_pad=mask_pad,
-                    progress_callback=_cb,
-                )
-            images[idx] = current
+            new_img = inpaint_batch(
+                img, regions,
+                pad_x=config.inpaint.padding_x,
+                pad_y=config.inpaint.padding_y,
+                method=config.inpaint.method,
+                opencv_radius=config.inpaint.opencv_radius,
+                opencv_method=config.inpaint.opencv_method,
+                device=config.inpaint.lama_device,
+                solid_ratio=config.inpaint.cv_auto_solid_ratio,
+                color_bucket=config.inpaint.cv_auto_color_bucket,
+                mask_pad=config.inpaint.cv_auto_mask_pad,
+                progress_callback=_cb,
+            )
+            images[idx] = new_img
             _save_page_jpg(project, p.page_number, new_img, subdir="cleaned")
             ctx.log(f"Page {p.page_number}: cleaned OK in "
                     f"{time.perf_counter() - t0:.1f}s → cleaned/page-{p.page_number}.jpg")

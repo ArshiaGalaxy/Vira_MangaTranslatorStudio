@@ -32,6 +32,7 @@ from PIL import Image
 
 from comic_translator.inpainters.base import InpainterBackend
 from comic_translator.inpainters.common import (
+    build_combined_core_mask,
     build_iopoint_combined_mask,
     build_mask_pil,
     cv2_edge_blend,
@@ -435,6 +436,7 @@ class CVAutoBackend(InpainterBackend):
     def _auto_inpaint(
         self, image: Image.Image, mask: Image.Image,
         regions: list | None, solid_ratio: float, color_bucket: int,
+        core_mask: Image.Image | None = None,
         progress_callback=None,
     ) -> Image.Image:
         """Analyze-first inpainting, per connected component.
@@ -442,10 +444,19 @@ class CVAutoBackend(InpainterBackend):
         The ring is sampled around the original (unpadded) text bbox of each
         component, so it stays inside the bubble interior instead of leaking
         into neighboring backgrounds when the fill mask is heavily padded.
+
+        ``core_mask`` is the same regions without the pad dilation. Complex
+        background components (ring < solid_ratio) refill from it instead of
+        the padded mask so their footprint is not increased; solid
+        background components keep the padded mask.
         """
         mask_np = (np.array(mask) > 128).astype(np.uint8)
         if not mask_np.any():
             return image
+
+        core_np = None
+        if core_mask is not None:
+            core_np = (np.array(core_mask) > 128).astype(np.uint8)
 
         out = np.array(image.convert("RGB"))
         H, W = out.shape[:2]
@@ -535,10 +546,24 @@ class CVAutoBackend(InpainterBackend):
                     progress_callback(
                         f"component {i + 1}/{n}: {reason}", base_pct,
                     )
+                # Don't increase the mask on complex backgrounds: refill from
+                # the un-padded core component (pad absorbs detector slop on
+                # flat bubble interiors, but would eat real art in complex
+                # areas like screentones, hair, panel borders).
+                fx1, fy1, fx2, fy2 = x1, y1, x2, y2
+                fill_mask = comp_full
+                if core_np is not None:
+                    core_crop = core_np[y1:y2 + 1, x1:x2 + 1]
+                    if core_crop.any():
+                        ys, xs = np.nonzero(core_crop)
+                        fy1, fy2 = y1 + int(ys.min()), y1 + int(ys.max())
+                        fx1, fx2 = x1 + int(xs.min()), x1 + int(xs.max())
+                        fill_mask = np.zeros_like(mask_np)
+                        fill_mask[y1:y2 + 1, x1:x2 + 1] = core_crop
                 filled, method_used = _handle_complex_region(
-                    out, comp_full, x1, y1, x2, y2,
+                    out, fill_mask, fx1, fy1, fx2, fy2,
                 )
-                out[y1:y2 + 1, x1:x2 + 1] = filled
+                out[fy1:fy2 + 1, fx1:fx2 + 1] = filled
                 if progress_callback:
                     progress_callback(
                         f"component {i + 1}/{n}: → {method_used}", base_pct,
@@ -565,11 +590,15 @@ class CVAutoBackend(InpainterBackend):
         mask = build_mask_pil(
             image.size, x1, y1, x2, y2, text_boxes, pad_x + mask_pad, pad_y + mask_pad,
         )
+        core_mask = build_mask_pil(
+            image.size, x1, y1, x2, y2, text_boxes, pad_x, pad_y,
+        )
         # Steps 2-3: analyze first, then solid fill or LaMa
         return self._auto_inpaint(
             image, mask,
             [{"x1": x1, "y1": y1, "x2": x2, "y2": y2}],
-            solid_ratio, color_bucket, progress_callback=progress_callback,
+            solid_ratio, color_bucket, core_mask=core_mask,
+            progress_callback=progress_callback,
         )
 
     def inpaint_batch(
@@ -591,8 +620,12 @@ class CVAutoBackend(InpainterBackend):
         mask = build_iopoint_combined_mask(
             image.size, regions, pad_x + mask_pad, pad_y + mask_pad,
         )
+        # Un-padded core of the same regions: complex-background components
+        # refill from this so the pad does not grow their footprint.
+        core_mask = build_combined_core_mask(image.size, regions)
         # Steps 2-3: analyze first, then solid fill or LaMa
         return self._auto_inpaint(
             image, mask, regions, solid_ratio, color_bucket,
+            core_mask=core_mask,
             progress_callback=progress_callback,
         )
