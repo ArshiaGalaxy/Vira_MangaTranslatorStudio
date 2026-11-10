@@ -779,6 +779,47 @@ class DiagnosticsView(APIView):
         return resp
 
 
+class LanView(APIView):
+    """GET/PUT /api/lan — opt-in LAN exposure state.
+
+    The pin is shown to the local user on purpose: they read it off the
+    settings page to type it on the phone. Non-loopback access is gated by
+    the frontend gateway, which reads the mirrored lan.json at startup.
+    """
+
+    def get(self, request):
+        from . import lan
+
+        state = lan.get_lan_state()
+        return Response({**state, "lan_url": lan.lan_url()})
+
+    def put(self, request):
+        from . import lan
+
+        enabled = bool(request.data.get("enabled", False))
+        pin = request.data.get("pin")
+        if pin is not None and not (isinstance(pin, str) and len(pin) == 6
+                                    and pin.isdigit()):
+            return Response({"detail": "PIN must be exactly 6 digits"},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            state = lan.set_lan_state(enabled, pin)
+        except ValueError as e:
+            return Response({"detail": str(e)},
+                            status=status.HTTP_400_BAD_REQUEST)
+        return Response({**state, "lan_url": lan.lan_url()})
+
+
+class LanRotateView(APIView):
+    """POST /api/lan/rotate — replace the pin with a fresh random one."""
+
+    def post(self, request):
+        from . import lan
+
+        state = lan.rotate_pin()
+        return Response({**state, "lan_url": lan.lan_url()})
+
+
 class MaskMarkViewSet(viewsets.ModelViewSet):
     """Freehand eraser marks: list/create/delete, optional ?page= filter."""
 

@@ -79,11 +79,29 @@ fn start_flow(app: &tauri::AppHandle, state: &Mutex<SharedState>) -> Result<(), 
     // ── Ports ──────────────────────────────────────────────────────────────
     let backend_port = ports::find_free_port(PREFERRED_BACKEND);
     let frontend_port = ports::find_free_port(PREFERRED_FRONTEND);
+
+    // ── LAN exposure (opt-in) ─────────────────────────────────────────────
+    // The backend mirrors the user's choice to <data>\lan.json; binding and
+    // the PIN are fixed at process start, so this is the single read point.
+    // When enabled, Next.js moves to an internal loopback port and the PIN
+    // gateway takes the public one (0.0.0.0) — the ONLY listener on the LAN.
+    let (lan_enabled, lan_pin) = crate::paths::read_lan_config();
+    let next_port = if lan_enabled {
+        ports::find_free_port(frontend_port.saturating_add(1))
+    } else {
+        frontend_port
+    };
+
     {
         let guard = state.lock().unwrap();
         guard.backend_port.store(backend_port as u32, Ordering::SeqCst);
         guard.frontend_port.store(frontend_port as u32, Ordering::SeqCst);
-        guard.emit(&Event::new(Stage::Ports, format!("Using backend port {backend_port}, interface port {frontend_port}")).progress(5));
+        let summary = if lan_enabled {
+            "LAN access enabled: PIN gateway on the interface port"
+        } else {
+            "loopback only"
+        };
+        guard.emit(&Event::new(Stage::Ports, format!("Using backend port {backend_port}, interface port {frontend_port} ({summary})")).progress(5));
     }
 
     // Configure the embedded interpreter's search paths (idempotent).
@@ -184,7 +202,9 @@ fn start_flow(app: &tauri::AppHandle, state: &Mutex<SharedState>) -> Result<(), 
         .filter(|(k, _)| k != "DJANGO_SETTINGS_MODULE")
         .cloned()
         .collect();
-    node_env.push(("PORT".into(), frontend_port.to_string()));
+    // In LAN mode Next listens on an internal loopback port; the PIN gateway
+    // owns the public one and forwards to it.
+    node_env.push(("PORT".into(), next_port.to_string()));
     node_env.push(("HOSTNAME".into(), "127.0.0.1".into()));
     node_env.push(("NODE_ENV".into(), "production".into()));
     node_env.push(("BACKEND_URL".into(), format!("http://127.0.0.1:{backend_port}")));
@@ -206,10 +226,51 @@ fn start_flow(app: &tauri::AppHandle, state: &Mutex<SharedState>) -> Result<(), 
     }
     {
         let pid = frontend.id();
-        wait_health(frontend_port, "/", "Studio interface", &mut frontend).map_err(|e| {
+        wait_health(next_port, "/", "Studio interface", &mut frontend).map_err(|e| {
             append_log_line(&format!("[Next.js] pid {pid} failed health: {e}"));
             (Stage::Frontend, "Studio interface did not respond".into(), e)
         })?;
+    }
+
+    // ── LAN gateway (only when exposure is opted in) ─────────────────────
+    // Listens on 0.0.0.0:{frontend_port} and forwards to Next on loopback;
+    // non-loopback clients must present the 6-digit PIN (cookie after the
+    // first entry). The desktop webview connects via loopback and is exempt.
+    if lan_enabled {
+        let node_gate = runtime::node_exe(&roots).ok_or((
+            Stage::Frontend,
+            "Runtime missing".into(),
+            "Bundled Node runtime missing.".into(),
+        ))?;
+        let gate_env: Vec<(String, String)> = vec![
+            ("PORT".into(), frontend_port.to_string()),
+            ("UPSTREAM_PORT".into(), next_port.to_string()),
+            ("VIRA_LAN_PIN".into(), lan_pin.clone()),
+            ("NODE_ENV".into(), "production".into()),
+            ("NEXT_TELEMETRY_DISABLED".into(), "1".into()),
+        ];
+        let mut gateway = proc::spawn_tracked(
+            &SpawnSpec {
+                program: node_gate,
+                args: vec!["lan-gate.js".into()],
+                cwd: standalone.clone(),
+                env: gate_env,
+                label: "LAN gateway".into(),
+            },
+            |line| append_log_line(&line),
+        )
+        .map_err(|e| (Stage::Frontend, "LAN gateway failed to start".into(), format!("spawn error: {e}")))?;
+        {
+            let guard = state.lock().unwrap();
+            guard.spawned.lock().unwrap().push(proc::Tracked::new(gateway.id(), "LAN gateway"));
+        }
+        {
+            let pid = gateway.id();
+            wait_health(frontend_port, "/", "LAN gateway", &mut gateway).map_err(|e| {
+                append_log_line(&format!("[LAN gateway] pid {pid} failed health: {e}"));
+                (Stage::Frontend, "LAN gateway did not respond".into(), e)
+            })?;
+        }
     }
 
     // ── Navigate the launcher window into the studio ──────────────────────

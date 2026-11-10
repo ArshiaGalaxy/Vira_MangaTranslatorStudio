@@ -31,6 +31,9 @@ urlpatterns = [
     path("fonts/<str:name>", views.font_file),
     # Diagnostics bundle for bug reports
     path("diagnostics", views.DiagnosticsView.as_view()),
+    # Opt-in LAN exposure (frontend gateway reads the mirrored lan.json)
+    path("lan", views.LanView.as_view()),
+    path("lan/rotate", views.LanRotateView.as_view()),
     # Update system (desktop only)
     path("update/check", views.UpdateCheckView.as_view()),
     path("update/prefs", views.UpdatePrefsView.as_view()),

@@ -115,6 +115,10 @@ if (-not $SkipPayload) {
     New-Item -ItemType Directory -Force -Path (Split-Path $feDest) | Out-Null
     Copy-Item $standalone -Destination $feDest -Recurse -Force
     Copy-Item $root\frontend\.next\static -Destination "$feDest\.next\static" -Recurse -Force
+    # LAN gateway: spawned by the launcher in place of direct exposure when
+    # the user opts in (reads PORT/UPSTREAM_PORT/VIRA_LAN_PIN env).
+    Copy-Item $root\frontend\lan-gate.js -Destination "$feDest\lan-gate.js" -Force
+    if (-not (Test-Path "$feDest\lan-gate.js")) { throw "lan-gate.js staging failed" }
     if (Test-Path $root\frontend\public) {
         Copy-Item $root\frontend\public -Destination "$feDest\public" -Recurse -Force
     }

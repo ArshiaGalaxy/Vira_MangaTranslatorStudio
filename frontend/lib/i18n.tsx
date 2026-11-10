@@ -801,6 +801,36 @@ export const dict = {
   "set.never": { en: "Never", fa: "هرگز" },
   "set.checkNow": { en: "Check now", fa: "بررسی اکنون" },
   "set.grp.diagnostics": { en: "Diagnostics", fa: "عیب‌یابی" },
+  "set.sec.lan": { en: "LAN access", fa: "دسترسی شبکه محلی" },
+  "set.desc.lan": {
+    en: "Open the studio from a phone or tablet on the same Wi-Fi. Visitors unlock once with a 6-digit PIN; the desktop app itself never needs it.",
+    fa: "باز کردن استودیو از موبایل یا تبلت روی همان وای‌فای. مهمان‌ها یک بار با کد ۶ رقمی وارد می‌شوند؛ خودِ برنامه دسکتاپ نیازی به کد ندارد.",
+  },
+  "set.lan.unavailable": {
+    en: "LAN settings could not be loaded.",
+    fa: "بارگذاری تنظیمات شبکه محلی ناموفق بود.",
+  },
+  "set.lan.toggle": { en: "Expose on LAN", fa: "اشتراک‌گذاری در شبکه محلی" },
+  "set.lan.toggleHint": {
+    en: "Off: this computer only. On: other devices on this network can reach the studio.",
+    fa: "خاموش: فقط همین رایانه. روشن: دستگاه‌های دیگر همین شبکه به استودیو دسترسی دارند.",
+  },
+  "set.lan.enabled": {
+    en: "LAN access will be available after restarting Vira",
+    fa: "دسترسی شبکه محلی پس از راه‌اندازی دوباره ویرا فعال می‌شود",
+  },
+  "set.lan.disabled": {
+    en: "LAN access is off — applies after restarting Vira",
+    fa: "دسترسی شبکه محلی خاموش شد — پس از راه‌اندازی دوباره اعمال می‌شود",
+  },
+  "set.lan.url": { en: "Address for other devices", fa: "نشانی برای دستگاه‌های دیگر" },
+  "set.lan.pin": { en: "Access PIN", fa: "کد دسترسی" },
+  "set.lan.rotate": { en: "New PIN", fa: "کد جدید" },
+  "set.lan.rotated": { en: "A new PIN was generated", fa: "کد جدید ساخته شد" },
+  "set.lan.restartHint": {
+    en: "Changes take effect after restarting Vira. The first time, Windows may ask for firewall permission — allow access on private networks.",
+    fa: "تغییرات پس از راه‌اندازی دوباره ویرا اعمال می‌شوند. بار اول ویندوز ممکن است اجازه فایروال بخواهد — اجازه دهید روی شبکه‌های خصوصی.",
+  },
   "set.exportDiagnostics": { en: "Export diagnostics", fa: "خروجی عیب‌یابی" },
   "set.exportDiagnosticsHint": {
     en: "Bundle versions, settings (secrets redacted) and recent job logs into a zip to attach to bug reports.",

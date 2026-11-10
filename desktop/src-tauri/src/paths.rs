@@ -66,6 +66,26 @@ pub fn user_data_dir() -> PathBuf {
         .join("Vira Translator Studio")
 }
 
+/// Read the backend-mirrored LAN exposure state (`<data>\lan.json`).
+///
+/// The backend writes this file whenever the user changes the opt-in
+/// "Expose on LAN" setting; binding and the PIN are fixed at process
+/// start, so the state is read exactly once here, before spawning.
+/// Returns `(enabled, pin)`; a missing or corrupt file means disabled.
+pub fn read_lan_config() -> (bool, String) {
+    let raw = std::fs::read_to_string(user_data_dir().join("lan.json")).unwrap_or_default();
+    let v: serde_json::Value = serde_json::from_str(&raw).unwrap_or(serde_json::Value::Null);
+    let pin = v
+        .get("pin")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
+    // Fail closed: the PIN must look usable before anything listens on the LAN.
+    let enabled = v.get("enabled").and_then(|x| x.as_bool()).unwrap_or(false)
+        && pin.len() == 6;
+    (enabled, pin)
+}
+
 pub fn vira_home_dir() -> PathBuf {
     crate::state::dirs_local()
         .unwrap_or_else(|| std::env::temp_dir())

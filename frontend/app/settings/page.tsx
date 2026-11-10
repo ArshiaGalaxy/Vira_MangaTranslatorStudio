@@ -15,11 +15,13 @@ import {
   Languages,
   Loader2,
   Palette,
+  RefreshCw,
   Save,
   ScanText,
   Sparkles,
   Type,
   Zap,
+  Wifi,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { FontInfo } from "@/lib/types";
@@ -36,6 +38,7 @@ const SECTIONS = [
   { key: "inpaint", icon: <Palette size={15} /> },
   { key: "typography", icon: <Braces size={15} /> },
   { key: "updates", icon: <Zap size={15} /> },
+  { key: "lan", icon: <Wifi size={15} /> },
 ] as const;
 
 const FONT_PATH_FIELDS = new Set(["path_normal"]);
@@ -257,6 +260,51 @@ export default function SettingsPage() {
       setExportingDiag(false);
     }
   }, [t, toast]);
+
+  // ── LAN exposure ─────────────────────────────────────────────────────
+  const [lanState, setLanState] = useState<{
+    enabled: boolean;
+    pin: string;
+    lan_url: string;
+  } | null>(null);
+  const [lanBusy, setLanBusy] = useState(false);
+  const [rotating, setRotating] = useState(false);
+
+  const loadLan = useCallback(async () => {
+    try {
+      setLanState(await api.get("/api/lan"));
+    } catch {
+      setLanState(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadLan();
+  }, [loadLan]);
+
+  async function toggleLan(enabled: boolean) {
+    setLanBusy(true);
+    try {
+      setLanState(await api.put("/api/lan", { enabled }));
+      toast.push(enabled ? t("set.lan.enabled") : t("set.lan.disabled"), "success");
+    } catch (err) {
+      toast.push(err instanceof Error ? err.message : t("toast.actionFailed"), "error");
+    } finally {
+      setLanBusy(false);
+    }
+  }
+
+  async function rotateLan() {
+    setRotating(true);
+    try {
+      setLanState(await api.post("/api/lan/rotate", {}));
+      toast.push(t("set.lan.rotated"), "success");
+    } catch (err) {
+      toast.push(err instanceof Error ? err.message : t("toast.actionFailed"), "error");
+    } finally {
+      setRotating(false);
+    }
+  }
 
   // Load config, fonts, and update prefs
   const load = useCallback(async () => {
@@ -797,6 +845,109 @@ export default function SettingsPage() {
               </button>
             </div>
           </section>
+        </div>
+      )}
+
+      {/* LAN access */}
+      {activeSection === "lan" && (
+        <div className="card anim-fade-up mt-6 space-y-6 p-6 sm:p-7">
+          <h2 className="font-display text-2xl font-extrabold" dir="auto">
+            {t("set.sec.lan")}
+          </h2>
+          <p className="text-sm leading-relaxed text-muted" dir="auto">
+            {t("set.desc.lan")}
+          </p>
+
+          {!lanState ? (
+            <p className="text-sm text-faint" dir="auto">
+              {t("set.lan.unavailable")}
+            </p>
+          ) : (
+            <>
+              <section className="rounded-2xl border border-line bg-surface2 p-5">
+                <div className="flex items-center gap-3">
+                  <label className="inline-flex w-fit cursor-pointer items-center">
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={lanState.enabled}
+                      disabled={lanBusy}
+                      onChange={(e) => void toggleLan(e.target.checked)}
+                    />
+                    <span
+                      aria-hidden
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full border transition-colors ${
+                        lanState.enabled
+                          ? "border-primary bg-primary"
+                          : "border-line bg-surface3"
+                      }`}
+                    >
+                      <span
+                        className={`absolute start-[3px] top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-white shadow-sm transition-transform ${
+                          lanState.enabled ? "translate-x-4" : ""
+                        }`}
+                      />
+                    </span>
+                  </label>
+                  <div>
+                    <div className="text-xs font-bold text-ink" dir="auto">
+                      {t("set.lan.toggle")}
+                    </div>
+                    <div className="text-[11px] text-faint" dir="auto">
+                      {t("set.lan.toggleHint")}
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {lanState.enabled && (
+                <section className="space-y-4 rounded-2xl border border-line bg-surface2 p-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-ink" dir="auto">
+                        {t("set.lan.url")}
+                      </div>
+                      <div
+                        className="select-all font-mono text-sm text-ink"
+                        dir="ltr"
+                      >
+                        {lanState.lan_url}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="text-xs font-bold text-ink" dir="auto">
+                        {t("set.lan.pin")}
+                      </div>
+                      <div
+                        className="font-mono text-lg tracking-[0.35em] text-ink"
+                        dir="ltr"
+                      >
+                        {lanState.pin}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => void rotateLan()}
+                      disabled={rotating}
+                      className="btn btn-outline shrink-0 px-3 py-1.5 text-xs"
+                    >
+                      {rotating ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <RefreshCw size={13} />
+                      )}
+                      {t("set.lan.rotate")}
+                    </button>
+                  </div>
+                </section>
+              )}
+
+              <p className="text-[11px] leading-relaxed text-faint" dir="auto">
+                {t("set.lan.restartHint")}
+              </p>
+            </>
+          )}
         </div>
       )}
 
