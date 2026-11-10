@@ -235,6 +235,28 @@ export default function SettingsPage() {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
   const [applyingUpdate, setApplyingUpdate] = useState(false);
+  const [exportingDiag, setExportingDiag] = useState(false);
+
+  /** Download the diagnostics zip (versions + sanitized config + job logs). */
+  const exportDiagnostics = useCallback(async () => {
+    setExportingDiag(true);
+    try {
+      const r = await fetch("/api/diagnostics");
+      if (!r.ok) throw new Error(String(r.status));
+      const blob = await r.blob();
+      const cd = r.headers.get("content-disposition") ?? "";
+      const m = cd.match(/filename="?([^";]+)"?/i);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = m?.[1] ?? "vira-diagnostics.zip";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      toast.push(t("toast.actionFailed"), "error");
+    } finally {
+      setExportingDiag(false);
+    }
+  }, [t, toast]);
 
   // Load config, fonts, and update prefs
   const load = useCallback(async () => {
@@ -745,6 +767,36 @@ export default function SettingsPage() {
               </p>
             </section>
           )}
+
+          {/* Diagnostics */}
+          <section className="rounded-2xl border border-line bg-surface2 p-5">
+            <h3 className="mb-3 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-faint">
+              <Info size={13} />
+              {t("set.grp.diagnostics")}
+            </h3>
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-ink" dir="auto">
+                  {t("set.exportDiagnostics")}
+                </div>
+                <div className="text-[11px] text-faint" dir="auto">
+                  {t("set.exportDiagnosticsHint")}
+                </div>
+              </div>
+              <button
+                onClick={() => void exportDiagnostics()}
+                disabled={exportingDiag}
+                className="btn btn-outline shrink-0 px-3 py-1.5 text-xs"
+              >
+                {exportingDiag ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Download size={13} />
+                )}
+                {t("set.exportDiagnostics")}
+              </button>
+            </div>
+          </section>
         </div>
       )}
 

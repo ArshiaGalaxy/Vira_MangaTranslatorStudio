@@ -800,6 +800,12 @@ export const dict = {
   "set.lastCheck": { en: "Last checked", fa: "آخرین بررسی" },
   "set.never": { en: "Never", fa: "هرگز" },
   "set.checkNow": { en: "Check now", fa: "بررسی اکنون" },
+  "set.grp.diagnostics": { en: "Diagnostics", fa: "عیب‌یابی" },
+  "set.exportDiagnostics": { en: "Export diagnostics", fa: "خروجی عیب‌یابی" },
+  "set.exportDiagnosticsHint": {
+    en: "Bundle versions, settings (secrets redacted) and recent job logs into a zip to attach to bug reports.",
+    fa: "نسخه‌ها، تنظیمات (بدون کلیدها) و لاگ کارهای اخیر را برای پیوست به گزارش باگ در یک فایل zip جمع می‌کند.",
+  },
   "set.checking": { en: "Checking…", fa: "در حال بررسی…" },
 
   "set.updateAvailable": {

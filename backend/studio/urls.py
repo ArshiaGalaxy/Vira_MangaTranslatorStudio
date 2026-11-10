@@ -29,6 +29,8 @@ urlpatterns = [
     path("config/test-provider", views.ConfigTestProviderView.as_view()),
     path("fonts", views.FontsView.as_view()),
     path("fonts/<str:name>", views.font_file),
+    # Diagnostics bundle for bug reports
+    path("diagnostics", views.DiagnosticsView.as_view()),
     # Update system (desktop only)
     path("update/check", views.UpdateCheckView.as_view()),
     path("update/prefs", views.UpdatePrefsView.as_view()),

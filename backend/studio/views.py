@@ -1,7 +1,10 @@
 """DRF views for Vira Translator Studio."""
 
+import json
 import logging
 import mimetypes
+import os
+import re
 import time
 
 from django.conf import settings
@@ -636,6 +639,144 @@ def font_file(request, name: str):
                             else "font/otf")
     response["X-Content-Type-Options"] = "nosniff"
     return response
+
+
+# ── Diagnostics export ───────────────────────────────────────────────────────
+
+_SECRET_KEY_RE = re.compile(r"key|token|secret|password|authorization", re.I)
+
+
+def _sanitize(obj):
+    """Redact values whose key looks secret-bearing — the diagnostics bundle
+    carries the config, and translator API keys must never leave the machine."""
+    if isinstance(obj, dict):
+        return {
+            k: ("***" if _SECRET_KEY_RE.search(str(k)) else _sanitize(v))
+            for k, v in obj.items()
+        }
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize(x) for x in obj]
+    return obj
+
+
+def _logs_dir() -> Path | None:
+    """Launcher log directory (desktop installs); absent in dev."""
+    base = os.environ.get("LOCALAPPDATA", "")
+    return Path(base) / "Vira" / "logs" if base else None
+
+
+def _collect_diagnostics() -> dict:
+    import platform as _platform
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as _dist_version
+
+    try:
+        from comic_translator import __version__ as engine_version
+    except Exception:
+        engine_version = "unknown"
+
+    packages = {}
+    for dist in ("onnxruntime", "paddleocr", "paddlepaddle", "pillow",
+                 "opencv-python"):
+        try:
+            packages[dist] = _dist_version(dist)
+        except PackageNotFoundError:
+            packages[dist] = "not installed"
+
+    try:
+        from comic_translator.inpainters.cv_auto import _lama_onnx_path
+        lama = _lama_onnx_path()
+        models = {
+            "lama_onnx": {
+                "found": bool(lama),
+                "path": str(lama) if lama else "",
+                "size_mb": round(lama.stat().st_size / 1e6, 1) if lama else 0,
+            },
+        }
+    except Exception as e:
+        models = {"lama_onnx": {"found": False, "error": str(e)[:200]}}
+
+    return {
+        "generated_at": timezone.now().isoformat(),
+        "app": {
+            "engine_version": engine_version,
+            "desktop_mode": settings.DESKTOP_MODE,
+            "user_data_dir": str(settings.USER_DATA_DIR),
+        },
+        "system": {
+            "platform": _platform.platform(),
+            "python": _platform.python_version(),
+            "machine": _platform.machine(),
+            "cpus": os.cpu_count(),
+        },
+        "packages": packages,
+        "models": models,
+        "config": _sanitize(services.get_global_config()),
+        "projects": [
+            {
+                "id": str(p.pk),
+                "name": p.name,
+                "mode": p.detected_mode,
+                "pdf_type": p.pdf_type,
+                "status": p.status,
+                "pages": p.pages.count(),
+                "blocks": p.blocks.count(),
+                "translated": p.blocks.exclude(translation="").count(),
+            }
+            for p in Project.objects.all()[:20]
+        ],
+        "recent_jobs": [
+            {
+                "kind": j.kind,
+                "status": j.status,
+                "stage": j.stage,
+                "created": j.created_at.isoformat(),
+                "finished": j.finished_at.isoformat() if j.finished_at else None,
+                "error": (j.error_message or "")[:500],
+                "params": _sanitize(j.params or {}),
+                "log_tail": (j.logs or [])[-150:],
+            }
+            for j in Job.objects.order_by("-created_at")[:10]
+        ],
+    }
+
+
+class DiagnosticsView(APIView):
+    """GET /api/diagnostics — zip bundle for bug reports.
+
+    Contains diagnostics.json (versions, sanitized config, model status,
+    recent jobs + log tails) and the desktop launcher log files. Secrets are
+    redacted from everything; the bundle is safe to attach to an issue.
+    """
+
+    def get(self, request):
+        import io
+        import zipfile
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr(
+                "diagnostics.json",
+                json.dumps(_collect_diagnostics(), indent=2,
+                           ensure_ascii=False, default=str),
+            )
+            logs_dir = _logs_dir()
+            if logs_dir and logs_dir.is_dir():
+                newest = sorted(logs_dir.glob("*.log"),
+                                key=lambda x: x.stat().st_mtime,
+                                reverse=True)[:10]
+                for f in newest:
+                    try:
+                        zf.writestr(f"logs/{f.name}",
+                                    f.read_bytes()[:2_000_000])
+                    except OSError:
+                        continue
+
+        stamp = timezone.localtime().strftime("%Y%m%d-%H%M")
+        resp = HttpResponse(buf.getvalue(), content_type="application/zip")
+        resp["Content-Disposition"] = \
+            f'attachment; filename="vira-diagnostics-{stamp}.zip"'
+        return resp
 
 
 class MaskMarkViewSet(viewsets.ModelViewSet):
