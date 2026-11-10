@@ -293,6 +293,83 @@ def merge_cross_page(
 
 # ── Manhwa Concatenation + Chunking OCR ──────────────────────────────────────
 
+# Safety margin (px) kept between a display-chunk cut and any dialog bbox:
+# the inpaint mask is dilated around each block, so a cut touching the block
+# edge would clip the mask and leave edge artifacts.
+_DISPLAY_CUT_MARGIN = 48
+
+
+def _merge_intervals(y_ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Merge overlapping/adjacent ``[y1, y2]`` intervals; returns sorted pairs."""
+    if not y_ranges:
+        return []
+    ys = sorted(y_ranges)
+    merged = [list(ys[0])]
+    for y1, y2 in ys[1:]:
+        if y1 <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], y2)
+        else:
+            merged.append([y1, y2])
+    return [(a, b) for a, b in merged]
+
+
+def _choose_display_cut_points(
+    tall_height: int,
+    block_y_ranges: list[tuple[int, int]],
+    chunk_height: int,
+    slack: int,
+    margin: int = _DISPLAY_CUT_MARGIN,
+) -> list[int]:
+    """Non-overlapping display cut points that dodge every dialog bbox.
+
+    Ideal cuts sit on the uniform ``chunk_height`` grid. Each cut may slide
+    within ±``slack`` (the same slack the OCR overlap provides) to land in
+    whitespace outside every block's ``[y1 - margin, y2 + margin]`` window,
+    so a block is never split across two display chunks — a split block's
+    sliver in the neighbour chunk would never be inpainted (text remnant).
+    The candidate nearest to the ideal position wins to keep chunk heights
+    even. Falls back to the ideal cut when no block-free gap exists within
+    the window (oversized block) — identical to the old uniform behaviour.
+    """
+    forbidden = _merge_intervals(
+        [(y1 - margin, y2 + margin) for y1, y2 in block_y_ranges]
+    )
+
+    def blocked(y: int) -> bool:
+        return any(a < y < b for a, b in forbidden)
+
+    cuts: list[int] = []
+    prev = 0
+    ideal = chunk_height
+    while ideal < tall_height:
+        chosen: int | None = None
+        if not blocked(ideal):
+            chosen = ideal
+        else:
+            for delta in range(1, slack + 1):
+                for y in (ideal - delta, ideal + delta):
+                    if prev < y < tall_height and not blocked(y):
+                        chosen = y
+                        break
+                if chosen is not None:
+                    break
+            if chosen is None:
+                logger.warning(
+                    "Display cut %d: no block-free gap within ±%d px; "
+                    "keeping ideal cut (block will be split)",
+                    ideal, slack,
+                )
+                chosen = ideal
+            else:
+                logger.info(
+                    "Display cut moved %d -> %d to dodge a dialog block",
+                    ideal, chosen,
+                )
+        cuts.append(chosen)
+        prev = chosen
+        ideal += chunk_height
+    return cuts
+
 
 def run_manhwa_concat_ocr(
     pdf_path: str | Path,
@@ -310,11 +387,11 @@ def run_manhwa_concat_ocr(
     2. Separate covers from content pages
     3. Resize content pages to 1200px width
     4. Concatenate ALL content pages into ONE tall image
-    5. Split tall image into:
-       - Overlapping chunks for OCR (saved as page-overlap-{n}.jpg)
-       - Non-overlapping chunks for display/inpaint (saved as page-{n}.jpg)
+    5. Split tall image into overlapping chunks for OCR
     6. OCR on overlapping chunks → coordinates in tall-image space
     7. Cluster into blocks with tall-image coordinates
+    8. Cut non-overlapping display chunks (page-{n}.jpg) with boundaries
+       that dodge dialog bboxes (within the OCR-overlap slack)
 
     Args:
         pdf_path: Path to the PDF file.
@@ -384,25 +461,19 @@ def run_manhwa_concat_ocr(
         combined.height,
     )
 
-    # ── Step 4: Split tall image for OCR (overlapping) and storage (non-overlapping) ──
+    # ── Step 4: Split tall image into overlapping chunks for OCR ──
+    # Display (non-overlapping) chunks are cut LATER (step 8), after OCR,
+    # so their boundaries can dodge dialog blocks.
     chunk_height = config.standard_max_side
     chunk_overlap = config.manhwa_concat_overlap
 
-    # Overlapping chunks for OCR
     ocr_splitter = PageSplitter(
         max_chunk_height=chunk_height,
         chunk_overlap=chunk_overlap,
     )
     ocr_chunks = ocr_splitter.split(combined)
 
-    # Non-overlapping chunks for storage/display
-    save_splitter = PageSplitter(
-        max_chunk_height=chunk_height,
-        chunk_overlap=0,
-    )
-    save_chunks = save_splitter.split(combined)
-
-    # ── Step 5: Save chunk images, overlap images, and the full tall image ──
+    # ── Step 5: Save the full tall image and page offsets ──
     chunk_paths: list[Path] = []
     if pages_dir is not None:
 
@@ -420,26 +491,6 @@ def run_manhwa_concat_ocr(
         offsets_path = Path(pages_dir) / "page_offsets.json"
         import json
         offsets_path.write_text(json.dumps(page_offsets), encoding="utf-8")
-
-        # Save non-overlapping chunks as page-{n}.jpg
-        for ci, chunk in enumerate(save_chunks):
-            chunk_path = Path(pages_dir) / f"page-{ci + 1}.jpg"
-            chunk_img = chunk.image
-            if chunk_img.mode != "RGB":
-                chunk_img = chunk_img.convert("RGB")
-            try:
-                chunk_img.save(chunk_path, "JPEG", quality=85)
-            except OSError:
-                chunk_path = Path(pages_dir) / f"page-{ci + 1}.png"
-                chunk_img.save(chunk_path, "PNG")
-            chunk_paths.append(chunk_path)
-
-        logger.info(
-            "Saved tall image (%dx%d), %d chunk images + %d overlap images",
-            combined.width, combined.height,
-            len(save_chunks),
-            len(ocr_chunks),
-        )
 
     # ── Step 6: OCR each overlapping chunk ──
     processor = OCRProcessor()
@@ -469,6 +520,37 @@ def run_manhwa_concat_ocr(
     for j, dlg in enumerate(dialogs):
         key = f"d-{j + 1}"
         all_blocks[key] = Block.from_ocr(1, dlg)
+
+    # ── Step 8: Display chunks — non-overlapping, boundaries dodge blocks ──
+    # OCR ran on overlapping chunks, so dialog coords are known in
+    # tall-image space here; slide each uniform cut into the nearest
+    # block-free gap so no block is ever split across two display chunks
+    # (a split block's sliver would never be inpainted -> text remnant).
+    if pages_dir is not None:
+        cut_points = _choose_display_cut_points(
+            combined.height,
+            [(dlg.y1, dlg.y2) for dlg in dialogs],
+            chunk_height,
+            chunk_overlap,
+        )
+        bounds = [0, *cut_points, combined.height]
+        for ci in range(len(bounds) - 1):
+            y_start, y_end = bounds[ci], bounds[ci + 1]
+            chunk_img = combined.crop((0, y_start, combined.width, y_end))
+            chunk_path = Path(pages_dir) / f"page-{ci + 1}.jpg"
+            try:
+                chunk_img.save(chunk_path, "JPEG", quality=85)
+            except OSError:
+                chunk_path = Path(pages_dir) / f"page-{ci + 1}.png"
+                chunk_img.save(chunk_path, "PNG")
+            chunk_paths.append(chunk_path)
+
+        logger.info(
+            "Saved tall image (%dx%d), %d chunk images + %d overlap images",
+            combined.width, combined.height,
+            len(bounds) - 1,
+            len(ocr_chunks),
+        )
 
     return all_blocks, page_results, chunk_paths
 
