@@ -73,3 +73,38 @@ export function downsamplePoints(points: Point[], max: number): Point[] {
   if (tail[0] !== last[0] || tail[1] !== last[1]) out.push(last);
   return out.slice(0, max);
 }
+
+/**
+ * Light freehand smoothing: replace each interior point with the mean of a
+ * small symmetric window, endpoints pinned. A couple of passes removes the
+ * hand tremor / pointer jitter that makes strokes look jagged, both in the
+ * live preview and in the committed polygon (whose outline is exactly what
+ * the cleaner erases).
+ */
+export function smoothPoints(
+  points: Point[],
+  passes = 2,
+  window = 3,
+): Point[] {
+  if (points.length < 5 || passes <= 0) return points;
+  let pts = points;
+  for (let pass = 0; pass < passes; pass++) {
+    const out: Point[] = [pts[0]];
+    for (let i = 1; i < pts.length - 1; i++) {
+      let sx = 0;
+      let sy = 0;
+      let n = 0;
+      for (let k = -window; k <= window; k++) {
+        const q = pts[Math.min(pts.length - 1, Math.max(0, i + k))];
+        sx += q[0];
+        sy += q[1];
+        n++;
+      }
+      out.push([Math.round(sx / n), Math.round(sy / n)]);
+    }
+    const last = pts[pts.length - 1];
+    out.push(last);
+    pts = out;
+  }
+  return pts;
+}

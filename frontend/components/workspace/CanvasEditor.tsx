@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 
 import { Maximize2, Minimize2 } from "lucide-react";
 import { MaskMark, TextBlock } from "@/lib/types";
 import { resizeRectHandle, resizeRotatedHandle } from "@/lib/block-geometry";
-import { downsamplePoints, strokeToPolygon } from "@/lib/stroke";
+import { downsamplePoints, smoothPoints, strokeToPolygon } from "@/lib/stroke";
 import { useI18n } from "@/lib/i18n";
 import { usePreviewLayout } from "./usePreviewLayout";
 
@@ -228,10 +228,33 @@ export const CanvasEditor = memo(function CanvasEditor({
     el.scrollTop = anchor.ay * anchor.ratio - anchor.ey;
   }, [zoom]);
 
-  // Live brush stroke (image coords); mirrored into state for rendering.
+  // Live brush stroke: points collect into a ref only — the preview paints
+  // via rAF straight into the polyline's DOM attribute, so pointermove
+  // bursts never re-render the workspace tree (that round trip is what
+  // made brush strokes feel laggy).
   const strokeRef = useRef<[number, number][] | null>(null);
-  const [stroke, setStroke] = useState<[number, number][] | null>(null);
+  const strokePreviewRef = useRef<SVGPolylineElement | null>(null);
+  const strokeFrameRef = useRef<number | null>(null);
   const eraseDeletedRef = useRef<Set<string>>(new Set());
+
+  // Paint the live stroke preview: rAF-coalesced, straight into the
+  // polyline DOM node (light smoothing so the preview matches the
+  // committed smoothing instead of showing raw jitter).
+  const paintStrokePreview = useCallback(() => {
+    if (strokeFrameRef.current !== null) return;
+    strokeFrameRef.current = requestAnimationFrame(() => {
+      strokeFrameRef.current = null;
+      const el = strokePreviewRef.current;
+      const pts = strokeRef.current;
+      if (!el) return;
+      el.setAttribute(
+        "points",
+        pts && pts.length > 1
+          ? smoothPoints(pts, 2).map((pt) => pt.join(",")).join(" ")
+          : "",
+      );
+    });
+  }, []);
 
   // Marquee box-selection: mirrored ref for the pointerup read, state for
   // the live overlay render.
@@ -320,13 +343,14 @@ export const CanvasEditor = memo(function CanvasEditor({
           return;
         }
         if (drag.kind === "brush") {
-          // Collect stroke points, skipping micro-movements.
+          // Collect stroke points, skipping micro-movements; preview paints
+          // on the next frame without a React re-render.
           const pts = strokeRef.current;
           if (pts) {
             const last = pts[pts.length - 1];
             if (Math.hypot(p.x - last[0], p.y - last[1]) >= MARK_MIN_DIST) {
               strokeRef.current = [...pts, [p.x, p.y]];
-              setStroke(strokeRef.current);
+              paintStrokePreview();
             }
           }
           return;
@@ -424,12 +448,15 @@ export const CanvasEditor = memo(function CanvasEditor({
         if (drag.kind === "brush") {
           const pts = strokeRef.current;
           strokeRef.current = null;
-          setStroke(null);
+          if (strokeFrameRef.current !== null) {
+            cancelAnimationFrame(strokeFrameRef.current);
+            strokeFrameRef.current = null;
+          }
           if (pts && pts.length > 0) {
             // Quick dabs/clicks yield 1-2 points but the backend requires
             // >= 3 (and clean ignores < 3) — pad with tiny nudges so a
             // single click still erases a dot instead of vanishing.
-            const padded: [number, number][] = [...pts];
+            const padded: [number, number][] = [...smoothPoints(pts, 2)];
             while (padded.length < 3) {
               const [lx, ly] = padded[padded.length - 1];
               padded.push([lx + 2, ly]);
@@ -461,8 +488,12 @@ export const CanvasEditor = memo(function CanvasEditor({
       // If the effect tears down mid-drag (page nav, image switch), don't
       // drop the last frame of movement.
       applyPendingGeo();
+      if (strokeFrameRef.current !== null) {
+        cancelAnimationFrame(strokeFrameRef.current);
+        strokeFrameRef.current = null;
+      }
     };
-  }, [drag, draftRect, imageWidth, imageHeight, toImageCoords, applyPendingGeo, eraseAt]);
+  }, [drag, draftRect, imageWidth, imageHeight, toImageCoords, applyPendingGeo, eraseAt, paintStrokePreview]);
 
   // Committing a translation also persists the preview's fitted font size
   // (via onTranslationCommit in the parent), so the size the user sees on
@@ -572,7 +603,7 @@ export const CanvasEditor = memo(function CanvasEditor({
             tool === "brush" ? { kind: "brush" } : { kind: "erase" };
           if (tool === "brush") {
             strokeRef.current = [[p.x, p.y]];
-            setStroke(strokeRef.current);
+            strokePreviewRef.current?.setAttribute("points", "");
           } else {
             eraseDeletedRef.current = new Set();
             eraseAt(p);
@@ -615,8 +646,10 @@ export const CanvasEditor = memo(function CanvasEditor({
             pointer-events-none; polygons re-enable events in erase mode.
             Marks are stored as filled polygons (the same shape the cleaner
             fills for its inpaint mask); the live stroke previews the width
-            as a thick polyline while painting. */}
-        {(maskMarks.length > 0 || stroke) && (
+            as a thick polyline while painting — its points are updated
+            imperatively via rAF, not React state, so painting never
+            re-renders the workspace. */}
+        {(maskMarks.length > 0 || drag?.kind === "brush") && (
           <svg
             className="pointer-events-none absolute inset-0 h-full w-full"
             viewBox={`0 0 ${imageWidth || 1} ${imageHeight || 1}`}
@@ -639,17 +672,16 @@ export const CanvasEditor = memo(function CanvasEditor({
                 }}
               />
             ))}
-            {stroke && (
-              <polyline
-                points={stroke.map((p) => p.join(",")).join(" ")}
-                fill="none"
-                stroke="var(--primary-strong)"
-                strokeWidth={brushWidth}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                opacity={0.6}
-              />
-            )}
+            <polyline
+              ref={strokePreviewRef}
+              points=""
+              fill="none"
+              stroke="var(--primary-strong)"
+              strokeWidth={brushWidth}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={0.6}
+            />
           </svg>
         )}
 
