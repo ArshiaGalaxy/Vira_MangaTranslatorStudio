@@ -680,7 +680,7 @@ export default function SettingsPage() {
                     >
                       <span
                         className={`absolute start-[3px] top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-white shadow-sm transition-transform ${
-                          updatePrefs.enabled ? "translate-x-4" : ""
+                          updatePrefs.enabled ? "translate-x-4 rtl:-translate-x-4" : ""
                         }`}
                       />
                     </span>
@@ -884,7 +884,7 @@ export default function SettingsPage() {
                     >
                       <span
                         className={`absolute start-[3px] top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-white shadow-sm transition-transform ${
-                          lanState.enabled ? "translate-x-4" : ""
+                          lanState.enabled ? "translate-x-4 rtl:-translate-x-4" : ""
                         }`}
                       />
                     </span>
