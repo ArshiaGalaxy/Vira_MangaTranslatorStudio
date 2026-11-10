@@ -314,6 +314,23 @@ def _ensure_provider_subobjects(cfg: dict) -> dict:
     return cfg
 
 
+def _repair_stale_config_values(cfg: dict) -> dict:
+    """Normalize known-bad saved values at read time.
+
+    The engine already defends at parse time (_as_positive_int); this keeps
+    the settings UI showing the *effective* value so the next save heals
+    storage too. Project snapshots have no edit UI, so the global read path
+    is the only place a user could still see a stale value.
+    """
+    from comic_translator.config import InpaintConfig, _as_positive_int
+
+    inp = cfg.get("inpaint")
+    if isinstance(inp, dict) and "cv_auto_mask_pad" in inp:
+        inp["cv_auto_mask_pad"] = _as_positive_int(
+            inp.get("cv_auto_mask_pad"), InpaintConfig.cv_auto_mask_pad)
+    return cfg
+
+
 def get_global_config() -> dict:
     """Return the global config dict (seeded from engine defaults on first call).
 
@@ -325,8 +342,9 @@ def get_global_config() -> dict:
     if not obj.value:
         obj.value = _read_seed_config()
         obj.save()
-    return _ensure_provider_subobjects(
+    cfg = _ensure_provider_subobjects(
         _prune_config(obj.value or {}, _allowed_config_sections(), warn=False))
+    return _repair_stale_config_values(cfg)
 
 
 def update_global_config(data: dict) -> dict:

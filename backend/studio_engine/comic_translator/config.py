@@ -30,6 +30,27 @@ def _env(key: str, default: Any = None) -> Any:
     return val if val else default
 
 
+def _as_positive_int(raw: Any, default: int) -> int:
+    """Lenient positive-int coercion for saved-config values: None/""/
+    non-numeric fall back to ``default`` instead of raising, and values
+    <= 0 are treated as "unset" and fall back too.
+
+    cv_auto_mask_pad depends on this: the settings UI once persisted an
+    empty numeric input as 0, and mask_pad=0 shrinks the LaMa inpaint mask
+    to ~6px of dilation around the OCR polys — thick glyph outlines then
+    survive just outside the mask and LaMa smears them inward, leaving a
+    dark smudge "ghost" in cleaned pages. 0 is never meaningful for that
+    field, so stale saved configs (global AND per-project snapshots)
+    self-repair to the designed default here, at parse time, with no data
+    migration.
+    """
+    try:
+        val = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return default
+    return val if val > 0 else default
+
+
 def _as_bool(raw: Any, default: bool) -> bool:
     """Strict boolean coercion: JSON booleans pass through; the strings
     "true"/"false" (any case) are honored so a user typo like "False" no
@@ -221,7 +242,8 @@ def _build_config(raw: dict[str, Any]) -> AppConfig:
             opencv_method=inp_raw.get("opencv_method", "ns"),
             cv_auto_solid_ratio=float(inp_raw.get("cv_auto_solid_ratio", 0.85)),
             cv_auto_color_bucket=int(inp_raw.get("cv_auto_color_bucket", 16)),
-            cv_auto_mask_pad=int(inp_raw.get("cv_auto_mask_pad", 20)),
+            # <= 0 / garbage self-repairs to 20 — see _as_positive_int.
+            cv_auto_mask_pad=_as_positive_int(inp_raw.get("cv_auto_mask_pad"), 20),
             lama_device=inp_raw.get("lama_device", "auto"),
             padding_x=int(inp_raw.get("padding_x", 30)),
             padding_y=int(inp_raw.get("padding_y", 30)),
