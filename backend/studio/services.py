@@ -1289,6 +1289,41 @@ def _scoped_targets(project: Project, page_number: int | None):
     return pages, pages_map, translations
 
 
+# Extra buffer added around brush-stroke polygons before they reach the
+# inpaint mask: users paint a bit wider than the art they want gone.
+BRUSH_EXTRA_PAD_PX = 8
+
+
+def _expand_polygon(points: list, px: int = BRUSH_EXTRA_PAD_PX) -> list:
+    """Offset a closed polygon outward by ~``px`` pixels (ellipse dilation).
+
+    Brush strokes are user-drawn, so the erase area should be slightly
+    more generous than the exact painted line in both the padded and the
+    tight (solid-fill) mask variant. Falls back to the input polygon.
+    """
+    import cv2
+    import numpy as np
+
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    x0, y0 = min(xs) - px - 2, min(ys) - px - 2
+    w = max(xs) - min(xs) + 2 * px + 4
+    h = max(ys) - min(ys) + 2 * px + 4
+    canvas = np.zeros((h, w), np.uint8)
+    local = np.array([[p[0] - x0, p[1] - y0] for p in points], np.int32)
+    cv2.fillPoly(canvas, [local], 255)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * px + 1, 2 * px + 1))
+    dilated = cv2.dilate(canvas, kernel)
+    contours, _ = cv2.findContours(
+        dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return points
+    contour = max(contours, key=cv2.contourArea)
+    approx = cv2.approxPolyDP(contour, 1.5, True).reshape(-1, 2).astype(int)
+    poly = [[int(x) + x0, int(y) + y0] for x, y in approx]
+    return poly if len(poly) >= 3 else points
+
+
 def _mask_regions_by_page(project: Project,
                           page_numbers: set[int] | None = None) -> dict[int, list[dict]]:
     """Manual freehand marks → engine-ready region dicts, grouped by page."""
@@ -1297,8 +1332,15 @@ def _mask_regions_by_page(project: Project,
         qs = qs.filter(page__page_number__in=page_numbers)
     regions: dict[int, list[dict]] = {}
     for mark in qs:
-        if len(mark.points) >= 3:
-            regions.setdefault(mark.page.page_number, []).append(mark.region)
+        if len(mark.points) < 3:
+            continue
+        pts = _expand_polygon(mark.points)
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        regions.setdefault(mark.page.page_number, []).append({
+            "x1": min(xs), "y1": min(ys), "x2": max(xs), "y2": max(ys),
+            "text_boxes": [pts],
+        })
     return regions
 
 
