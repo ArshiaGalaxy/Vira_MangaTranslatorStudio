@@ -1151,7 +1151,8 @@ def _inpaint_pages(ctx: JobContext, project: Project, config,
 
     for n, (idx, p, img) in enumerate(todo):
         ctx.check_cancelled()
-        regions = _page_regions(p) + mask_regions.get(p.page_number, [])
+        block_regions = _page_regions(p)
+        mark_regions = mask_regions.get(p.page_number, [])
 
         def _fmt_region(r) -> str:
             tb = r.get("text_boxes") or []
@@ -1159,6 +1160,7 @@ def _inpaint_pages(ctx: JobContext, project: Project, config,
             origin = "bbox" if not first else f"poly@{list(first)}"
             return f"({r['x1']},{r['y1']},{r['x2']},{r['y2']})[{origin}]"
 
+        regions = block_regions + mark_regions
         sizes = ", ".join(_fmt_region(r) for r in regions[:6])
         more = f" +{len(regions) - 6} more" if len(regions) > 6 else ""
         ctx.log(f"Page {p.page_number}: inpainting {len(regions)} region(s) [{sizes}{more}]")
@@ -1175,21 +1177,37 @@ def _inpaint_pages(ctx: JobContext, project: Project, config,
                 # vs LaMa decisions, quality fallbacks) → job log.
                 ctx.log(f"  ↳ p{_pg}: {msg}")
 
-            new_img = inpaint_batch(
-                img, regions,
-                pad_x=config.inpaint.padding_x,
-                pad_y=config.inpaint.padding_y,
-                method=config.inpaint.method,
-                opencv_radius=config.inpaint.opencv_radius,
-                opencv_method=config.inpaint.opencv_method,
-                device=config.inpaint.lama_device,
-                solid_ratio=config.inpaint.cv_auto_solid_ratio,
-                color_bucket=config.inpaint.cv_auto_color_bucket,
-                mask_pad=config.inpaint.cv_auto_mask_pad,
-                progress_callback=_cb,
-            )
-            images[idx] = new_img
-            _save_page_jpg(project, p.page_number, new_img, subdir="cleaned")
+            # Marks get their own pass so each mark is analyzed against its
+            # own surroundings: merged with blocks, one component's ring
+            # spans multiple backgrounds and the solid-fill picks the wrong
+            # color (flooded a bubble + its border with white, a caption box
+            # with black). Block regions still share components; brush
+            # erosion/pad behavior is unaffected (the flip in the engine
+            # decides tight vs padded either way).
+            current = img
+            for group, label in (
+                (block_regions, "blocks"),
+                (mark_regions, "brush marks"),
+            ):
+                if not group:
+                    continue
+                ctx.log(f"  ↳ p{p.page_number}: {label} pass — "
+                        f"{len(group)} region(s)")
+                current = inpaint_batch(
+                    current, group,
+                    pad_x=config.inpaint.padding_x,
+                    pad_y=config.inpaint.padding_y,
+                    method=config.inpaint.method,
+                    opencv_radius=config.inpaint.opencv_radius,
+                    opencv_method=config.inpaint.opencv_method,
+                    device=config.inpaint.lama_device,
+                    solid_ratio=config.inpaint.cv_auto_solid_ratio,
+                    color_bucket=config.inpaint.cv_auto_color_bucket,
+                    mask_pad=config.inpaint.cv_auto_mask_pad,
+                    progress_callback=_cb,
+                )
+            images[idx] = current
+            _save_page_jpg(project, p.page_number, current, subdir="cleaned")
             ctx.log(f"Page {p.page_number}: cleaned OK in "
                     f"{time.perf_counter() - t0:.1f}s → cleaned/page-{p.page_number}.jpg")
         except JobCancelled:
