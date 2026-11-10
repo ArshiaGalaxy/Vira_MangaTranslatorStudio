@@ -26,18 +26,39 @@ if DESKTOP_MODE:
     import winreg
     import os as _os
 
+    def _expand_or_none(raw: str) -> Path | None:
+        """expandvars leaves ``%VAR%`` literal when VAR is missing (stripped
+        launcher environments). Such a value would become a RELATIVE path and
+        create a literal ``%USERPROFILE%`` tree under the CWD — reject it and
+        fall back instead."""
+        expanded = Path(_os.path.expandvars(raw))
+        return expanded if "%" not in str(expanded) else None
+
+    candidates: list[Path] = []
     try:
         with winreg.OpenKey(
             winreg.HKEY_CURRENT_USER,
             r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders",
         ) as key:
-            local_app_data = Path(
-                _os.path.expandvars(winreg.QueryValueEx(key, "Local AppData")[0])
+            resolved = _expand_or_none(
+                winreg.QueryValueEx(key, "Local AppData")[0]
             )
+            if resolved:
+                candidates.append(resolved)
     except Exception:
-        local_app_data = Path(
-            _os.path.expandvars(_os.environ.get("LOCALAPPDATA", str(Path.home())))
-        )
+        pass
+    env_local = _os.environ.get("LOCALAPPDATA")
+    if env_local:
+        resolved = _expand_or_none(env_local)
+        if resolved:
+            candidates.append(resolved)
+    try:
+        fallback = Path.home()
+    except RuntimeError:  # ~ unresolvable in a stripped environment
+        # NOTE: keep the trailing backslash — Path("C:") is drive-relative
+        # and would resolve against the current directory ("C:ProgramData").
+        fallback = Path(os.environ.get("SYSTEMDRIVE", "C:") + "\\") / "ProgramData"
+    local_app_data = next(iter(candidates), fallback)
     USER_DATA_DIR = local_app_data / "Vira Translator Studio"
     USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
 else:
