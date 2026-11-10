@@ -445,10 +445,11 @@ class CVAutoBackend(InpainterBackend):
         component, so it stays inside the bubble interior instead of leaking
         into neighboring backgrounds when the fill mask is heavily padded.
 
-        ``core_mask`` is the same regions without the pad dilation. Complex
-        background components (ring < solid_ratio) refill from it instead of
-        the padded mask so their footprint is not increased; solid
-        background components keep the padded mask.
+        ``core_mask`` is the same regions without the pad dilation. Solid
+        background components (ring >= solid_ratio) refill from it — the
+        flat ring-color fill needs no extra margin. Complex background
+        components keep the padded mask so LaMa gets the wider
+        reconstruction area.
         """
         mask_np = (np.array(mask) > 128).astype(np.uint8)
         if not mask_np.any():
@@ -494,6 +495,24 @@ class CVAutoBackend(InpainterBackend):
             comp_full = np.zeros_like(mask_np)
             comp_full[y1:y2 + 1, x1:x2 + 1] = comp
 
+            # Tight un-padded core of this component (bbox within the padded
+            # component's bbox). Solid fills use it — the ring-color fill
+            # needs no extra margin, and padding would only swallow
+            # neighboring art. Complex fills keep the padded mask: LaMa
+            # reconstructs better from the wider hole.
+            tight_bbox = None
+            tight_full = None
+            if core_np is not None:
+                core_crop = core_np[y1:y2 + 1, x1:x2 + 1]
+                if core_crop.any():
+                    ys, xs = np.nonzero(core_crop)
+                    tight_bbox = (
+                        x1 + int(xs.min()), y1 + int(ys.min()),
+                        x1 + int(xs.max()), y1 + int(ys.max()),
+                    )
+                    tight_full = np.zeros_like(mask_np)
+                    tight_full[y1:y2 + 1, x1:x2 + 1] = core_crop
+
             if progress_callback:
                 progress_callback(f"component {i + 1}/{n}: analyzing colors", base_pct)
 
@@ -520,17 +539,30 @@ class CVAutoBackend(InpainterBackend):
 
             if ring_color is not None and ring_frac >= solid_ratio:
                 # > solid_ratio: solid background -> fill with the ring color.
+                # Fewer padding here: the flat fill needs no extra margin,
+                # so the tight core mask keeps the fill footprint minimal.
                 if progress_callback:
                     progress_callback(
                         f"component {i + 1}/{n}: solid fill — "
                         f"bg ring {_hex(ring_color)} {ring_frac:.0%} >= {solid_ratio:.0%}",
                         base_pct,
                     )
-                solid = np.empty_like(sub)
-                solid[:] = ring_color
-                out[y1:y2 + 1, x1:x2 + 1] = cv2_edge_blend(
-                    (comp * 255).astype(np.uint8), solid, sub,
-                )
+                if tight_bbox is not None:
+                    tx1, ty1, tx2, ty2 = tight_bbox
+                    t_sub = out[ty1:ty2 + 1, tx1:tx2 + 1].copy()
+                    t_solid = np.empty_like(t_sub)
+                    t_solid[:] = ring_color
+                    out[ty1:ty2 + 1, tx1:tx2 + 1] = cv2_edge_blend(
+                        (tight_full[ty1:ty2 + 1, tx1:tx2 + 1] * 255)
+                        .astype(np.uint8),
+                        t_solid, t_sub,
+                    )
+                else:
+                    solid = np.empty_like(sub)
+                    solid[:] = ring_color
+                    out[y1:y2 + 1, x1:x2 + 1] = cv2_edge_blend(
+                        (comp * 255).astype(np.uint8), solid, sub,
+                    )
             else:
                 # < solid_ratio: complex background — try LaMa, fall
                 # back to push-in fill. The follow-up line reports the
@@ -546,24 +578,12 @@ class CVAutoBackend(InpainterBackend):
                     progress_callback(
                         f"component {i + 1}/{n}: {reason}", base_pct,
                     )
-                # Don't increase the mask on complex backgrounds: refill from
-                # the un-padded core component (pad absorbs detector slop on
-                # flat bubble interiors, but would eat real art in complex
-                # areas like screentones, hair, panel borders).
-                fx1, fy1, fx2, fy2 = x1, y1, x2, y2
-                fill_mask = comp_full
-                if core_np is not None:
-                    core_crop = core_np[y1:y2 + 1, x1:x2 + 1]
-                    if core_crop.any():
-                        ys, xs = np.nonzero(core_crop)
-                        fy1, fy2 = y1 + int(ys.min()), y1 + int(ys.max())
-                        fx1, fx2 = x1 + int(xs.min()), x1 + int(xs.max())
-                        fill_mask = np.zeros_like(mask_np)
-                        fill_mask[y1:y2 + 1, x1:x2 + 1] = core_crop
+                # Complex backgrounds keep the padded mask: the wider hole
+                # gives LaMa/push-in more area to reconstruct cleanly.
                 filled, method_used = _handle_complex_region(
-                    out, fill_mask, fx1, fy1, fx2, fy2,
+                    out, comp_full, x1, y1, x2, y2,
                 )
-                out[fy1:fy2 + 1, fx1:fx2 + 1] = filled
+                out[y1:y2 + 1, x1:x2 + 1] = filled
                 if progress_callback:
                     progress_callback(
                         f"component {i + 1}/{n}: → {method_used}", base_pct,
