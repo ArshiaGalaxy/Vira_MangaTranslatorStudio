@@ -765,6 +765,8 @@ export const dict = {
   "toast.jobDone": { en: "Job finished successfully", fa: "کار با موفقیت انجام شد" },
   "toast.jobFailed": { en: "Job failed", fa: "کار ناموفق بود" },
   "toast.chainDone": { en: "All steps completed", fa: "همه مراحل انجام شد" },
+  "toast.exportReady": { en: "Export ready", fa: "خروجی آماده شد" },
+  "toast.download": { en: "Download", fa: "دانلود" },
   "toast.loadFailed": { en: "Failed to load data", fa: "بارگذاری داده‌ها ناموفق بود" },
 
   "err.title": { en: "Something went wrong", fa: "مشکلی پیش آمد" },

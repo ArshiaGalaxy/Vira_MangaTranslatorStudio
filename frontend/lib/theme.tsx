@@ -51,14 +51,26 @@ export const useTheme = () => useContext(Ctx);
 /* ── Toasts ───────────────────────────────────────────────────────────── */
 
 type ToastKind = "success" | "error" | "info";
+
+export interface ToastOptions {
+  /** Optional link target rendered as an action inside the toast (e.g. an
+   * exported file) — turns the toast into a one-click download affordance. */
+  href?: string;
+  linkLabel?: string;
+  /** Auto-dismiss delay in ms (default 4200; longer for actionable toasts). */
+  duration?: number;
+}
+
 interface Toast {
   id: number;
   kind: ToastKind;
   message: string;
+  href?: string;
+  linkLabel?: string;
 }
 
 const ToastCtx = createContext<{
-  push: (message: string, kind?: ToastKind) => void;
+  push: (message: string, kind?: ToastKind, opts?: ToastOptions) => void;
 }>({ push: () => {} });
 
 let nextId = 1;
@@ -66,13 +78,19 @@ let nextId = 1;
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<Toast[]>([]);
 
-  const push = useCallback((message: string, kind: ToastKind = "info") => {
-    const id = nextId++;
-    setItems((ts) => [...ts, { id, kind, message }]);
-    setTimeout(() => {
-      setItems((ts) => ts.filter((x) => x.id !== id));
-    }, 4200);
-  }, []);
+  const push = useCallback(
+    (message: string, kind: ToastKind = "info", opts?: ToastOptions) => {
+      const id = nextId++;
+      setItems((ts) => [
+        ...ts,
+        { id, kind, message, href: opts?.href, linkLabel: opts?.linkLabel },
+      ]);
+      setTimeout(() => {
+        setItems((ts) => ts.filter((x) => x.id !== id));
+      }, opts?.duration ?? 4200);
+    },
+    [],
+  );
 
   // Stable identity: pages keep `toast` in effect/callback deps — an
   // unstable value here would re-run them on every toast lifecycle event.
@@ -101,7 +119,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                     : "bg-primary"
               }`}
             />
-            <p className="text-sm font-medium">{t.message}</p>
+            <p className="min-w-0 flex-1 text-sm font-medium">{t.message}</p>
+            {t.href && (
+              <a
+                href={t.href}
+                download
+                className="btn btn-outline shrink-0 px-2.5 py-1 text-xs"
+              >
+                {t.linkLabel ?? "OK"}
+              </a>
+            )}
           </div>
         ))}
       </div>

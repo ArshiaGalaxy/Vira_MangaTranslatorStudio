@@ -286,13 +286,30 @@ export default function WorkspacePage() {
     void loadBlocks();
     void loadMaskMarks();
     if (job.status === "success") {
-      toast.push(`${job.kind}: ${t("toast.jobDone")}`, "success");
+      const exportFile =
+        job.kind === "apply" ? (job.result?.files ?? [])[0] : undefined;
+      if (exportFile) {
+        // Export finished: the toast doubles as the download affordance and
+        // outlives a plain toast — the files card below can scroll away.
+        toast.push(t("toast.exportReady"), "success", {
+          href: exportFile.url,
+          linkLabel: t("toast.download"),
+          duration: 12000,
+        });
+      } else {
+        toast.push(`${job.kind}: ${t("toast.jobDone")}`, "success");
+      }
       // Queue the result tab; the effect below switches once the reloaded
       // project actually carries the new image (avoids a "no image" flash).
       if (job.kind === "clean") autoViewRef.current = "cleaned";
       else if (job.kind === "render") autoViewRef.current = "rendered";
     } else if (!job.error_message?.includes("Cancelled")) {
-      toast.push(t("toast.jobFailed"), "error");
+      toast.push(
+        job.error_message
+          ? `${t("toast.jobFailed")}: ${job.error_message}`.slice(0, 200)
+          : t("toast.jobFailed"),
+        "error",
+      );
     }
 
     // Finish chain: after each successful step fire the next one; a failure
