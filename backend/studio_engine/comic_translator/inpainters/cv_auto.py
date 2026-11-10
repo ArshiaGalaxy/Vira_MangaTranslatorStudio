@@ -437,6 +437,7 @@ class CVAutoBackend(InpainterBackend):
         self, image: Image.Image, mask: Image.Image,
         regions: list | None, solid_ratio: float, color_bucket: int,
         core_mask: Image.Image | None = None,
+        solid_grow_px: int = 0,
         progress_callback=None,
     ) -> Image.Image:
         """Analyze-first inpainting, per connected component.
@@ -446,10 +447,11 @@ class CVAutoBackend(InpainterBackend):
         into neighboring backgrounds when the fill mask is heavily padded.
 
         ``core_mask`` is the same regions without the pad dilation. Solid
-        background components (ring >= solid_ratio) refill from it — the
-        flat ring-color fill needs no extra margin. Complex background
-        components keep the padded mask so LaMa gets the wider
-        reconstruction area.
+        background components (ring >= solid_ratio) refill from it: auto
+        blocks grow the hole by ``solid_grow_px`` (slim fringe coverage),
+        manual-mark components stay tight — their polygons already carry the
+        brush pad. Complex background components keep the padded mask so
+        LaMa gets the wider reconstruction area.
         """
         mask_np = (np.array(mask) > 128).astype(np.uint8)
         if not mask_np.any():
@@ -463,9 +465,12 @@ class CVAutoBackend(InpainterBackend):
         H, W = out.shape[:2]
         comps = find_connected_components(mask, min_area=4)
         n = max(1, len(comps))
-        # Unpadded text bboxes of the regions, precomputed once for the
-        # overlap filter below (regions may be dicts or objects).
-        region_boxes = [_region_bbox(r) for r in regions] if regions else []
+        # Unpadded text bboxes + manual-mark flags of the regions, for the
+        # overlap filters below (regions may be dicts or objects).
+        region_meta = [
+            (_region_bbox(r), bool(isinstance(r, dict) and r.get("manual")))
+            for r in regions
+        ] if regions else []
 
         if progress_callback:
             # One upfront truth line: is neural inpainting even possible?
@@ -495,23 +500,16 @@ class CVAutoBackend(InpainterBackend):
             comp_full = np.zeros_like(mask_np)
             comp_full[y1:y2 + 1, x1:x2 + 1] = comp
 
-            # Tight un-padded core of this component (bbox within the padded
-            # component's bbox). Solid fills use it — the ring-color fill
-            # needs no extra margin, and padding would only swallow
-            # neighboring art. Complex fills keep the padded mask: LaMa
-            # reconstructs better from the wider hole.
-            tight_bbox = None
-            tight_full = None
+            # Tight un-padded core of this component (crop over the padded
+            # component's bbox). Solid auto-block feels grow it by a quarter
+            # of the auto pad (fringe coverage without swallowing
+            # neighbors); manual marks stay tight. Complex fills use the
+            # padded mask: LaMa reconstructs from the wider hole.
+            core_crop = None
             if core_np is not None:
-                core_crop = core_np[y1:y2 + 1, x1:x2 + 1]
-                if core_crop.any():
-                    ys, xs = np.nonzero(core_crop)
-                    tight_bbox = (
-                        x1 + int(xs.min()), y1 + int(ys.min()),
-                        x1 + int(xs.max()), y1 + int(ys.max()),
-                    )
-                    tight_full = np.zeros_like(mask_np)
-                    tight_full[y1:y2 + 1, x1:x2 + 1] = core_crop
+                crop = core_np[y1:y2 + 1, x1:x2 + 1]
+                if crop.any():
+                    core_crop = crop
 
             if progress_callback:
                 progress_callback(f"component {i + 1}/{n}: analyzing colors", base_pct)
@@ -519,15 +517,19 @@ class CVAutoBackend(InpainterBackend):
             # Anchor the ring to the overlapping unpadded text bbox(es) so it
             # samples true bubble background (ground truth).
             anchor = None
-            if region_boxes:
-                overlap = [
-                    b for b in region_boxes
+            comp_manual = False
+            if region_meta:
+                overlapping = [
+                    (b, m) for b, m in region_meta
                     if not (b[2] < x1 or b[0] > x2 or b[3] < y1 or b[1] > y2)
                 ]
-                if overlap:
+                if overlapping:
+                    comp_manual = any(m for _, m in overlapping)
                     anchor = (
-                        min(b[0] for b in overlap), min(b[1] for b in overlap),
-                        max(b[2] for b in overlap), max(b[3] for b in overlap),
+                        min(b[0] for b, _ in overlapping),
+                        min(b[1] for b, _ in overlapping),
+                        max(b[2] for b, _ in overlapping),
+                        max(b[3] for b, _ in overlapping),
                     )
             if anchor is None:
                 anchor = (x1, y1, x2, y2)
@@ -539,27 +541,37 @@ class CVAutoBackend(InpainterBackend):
 
             if ring_color is not None and ring_frac >= solid_ratio:
                 # > solid_ratio: solid background -> fill with the ring color.
-                # Fewer padding here: the flat fill needs no extra margin,
-                # so the tight core mask keeps the fill footprint minimal.
+                # Auto blocks grow the fill by a quarter of the auto pad: the
+                # slim dilation still covers anti-aliased glyph fringes
+                # without swallowing neighbors. Manual marks keep the tight
+                # core (their polygons already carry the brush pad).
                 if progress_callback:
+                    detail = (
+                        "mark: tight mask"
+                        if comp_manual or core_crop is None
+                        else f"grow {solid_grow_px}px"
+                    )
                     progress_callback(
                         f"component {i + 1}/{n}: solid fill — "
-                        f"bg ring {_hex(ring_color)} {ring_frac:.0%} >= {solid_ratio:.0%}",
+                        f"bg ring {_hex(ring_color)} {ring_frac:.0%} "
+                        f">= {solid_ratio:.0%} ({detail})",
                         base_pct,
                     )
-                if tight_bbox is not None:
-                    tx1, ty1, tx2, ty2 = tight_bbox
-                    t_sub = out[ty1:ty2 + 1, tx1:tx2 + 1].copy()
-                    t_solid = np.empty_like(t_sub)
-                    t_solid[:] = ring_color
-                    out[ty1:ty2 + 1, tx1:tx2 + 1] = cv2_edge_blend(
-                        (tight_full[ty1:ty2 + 1, tx1:tx2 + 1] * 255)
-                        .astype(np.uint8),
-                        t_solid, t_sub,
+                solid = np.empty_like(sub)
+                solid[:] = ring_color
+                if core_crop is not None:
+                    if comp_manual or solid_grow_px <= 0:
+                        alpha = (core_crop * 255).astype(np.uint8)
+                    else:
+                        grow = cv2.getStructuringElement(
+                            cv2.MORPH_ELLIPSE,
+                            (solid_grow_px * 2 + 1, solid_grow_px * 2 + 1),
+                        )
+                        alpha = cv2.dilate(core_crop * 255, grow)
+                    out[y1:y2 + 1, x1:x2 + 1] = cv2_edge_blend(
+                        alpha.astype(np.uint8), solid, sub,
                     )
                 else:
-                    solid = np.empty_like(sub)
-                    solid[:] = ring_color
                     out[y1:y2 + 1, x1:x2 + 1] = cv2_edge_blend(
                         (comp * 255).astype(np.uint8), solid, sub,
                     )
@@ -613,11 +625,14 @@ class CVAutoBackend(InpainterBackend):
         core_mask = build_mask_pil(
             image.size, x1, y1, x2, y2, text_boxes, pad_x, pad_y,
         )
+        auto_px = pad_x + mask_pad
+        solid_grow_px = max(1, (auto_px // 2 + auto_px) // 4) if mask_pad > 0 else 0
         # Steps 2-3: analyze first, then solid fill or LaMa
         return self._auto_inpaint(
             image, mask,
             [{"x1": x1, "y1": y1, "x2": x2, "y2": y2}],
             solid_ratio, color_bucket, core_mask=core_mask,
+            solid_grow_px=solid_grow_px,
             progress_callback=progress_callback,
         )
 
@@ -640,12 +655,16 @@ class CVAutoBackend(InpainterBackend):
         mask = build_iopoint_combined_mask(
             image.size, regions, pad_x + mask_pad, pad_y + mask_pad,
         )
-        # Un-padded core of the same regions: complex-background components
-        # refill from this so the pad does not grow their footprint.
+        # Un-padded core of the same regions: solid-background components
+        # refill from it. Blocks grow the refill by a quarter of the auto
+        # dilation (fringe coverage without the padded footprint); manual
+        # marks, flagged per region, stay tight.
         core_mask = build_combined_core_mask(image.size, regions)
+        auto_px = pad_x + mask_pad
+        solid_grow_px = max(1, (auto_px // 2 + auto_px) // 4) if mask_pad > 0 else 0
         # Steps 2-3: analyze first, then solid fill or LaMa
         return self._auto_inpaint(
             image, mask, regions, solid_ratio, color_bucket,
-            core_mask=core_mask,
+            core_mask=core_mask, solid_grow_px=solid_grow_px,
             progress_callback=progress_callback,
         )

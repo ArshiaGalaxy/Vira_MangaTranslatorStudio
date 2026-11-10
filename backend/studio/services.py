@@ -1358,6 +1358,9 @@ def _mask_regions_by_page(project: Project,
         regions.setdefault(mark.page.page_number, []).append({
             "x1": min(xs), "y1": min(ys), "x2": max(xs), "y2": max(ys),
             "text_boxes": [pts],
+            # Manual flag: the engine keeps the solid-fill hole tight for
+            # these (the polygon already carries the brush pad).
+            "manual": True,
         })
     return regions
 
