@@ -437,7 +437,7 @@ class CVAutoBackend(InpainterBackend):
         self, image: Image.Image, mask: Image.Image,
         regions: list | None, solid_ratio: float, color_bucket: int,
         core_mask: Image.Image | None = None,
-        solid_grow_px: int = 0,
+        grow_px: int = 0,
         progress_callback=None,
     ) -> Image.Image:
         """Analyze-first inpainting, per connected component.
@@ -446,12 +446,12 @@ class CVAutoBackend(InpainterBackend):
         component, so it stays inside the bubble interior instead of leaking
         into neighboring backgrounds when the fill mask is heavily padded.
 
-        ``core_mask`` is the same regions without the pad dilation. Solid
-        background components (ring >= solid_ratio) refill from it: auto
-        blocks grow the hole by ``solid_grow_px`` (slim fringe coverage),
-        manual-mark components stay tight — their polygons already carry the
-        brush pad. Complex background components keep the padded mask so
-        LaMa gets the wider reconstruction area.
+        ``core_mask`` is the same regions without the pad dilation. Auto
+        blocks (solid OR complex background) pass the core grown by
+        ``grow_px`` (a quarter of the auto pad) as the fill/LaMa hole;
+        manual-mark components keep their masks as built — solid marks
+        refill from the tight core, complex marks use the full padded
+        mask.
         """
         mask_np = (np.array(mask) > 128).astype(np.uint8)
         if not mask_np.any():
@@ -501,10 +501,11 @@ class CVAutoBackend(InpainterBackend):
             comp_full[y1:y2 + 1, x1:x2 + 1] = comp
 
             # Tight un-padded core of this component (crop over the padded
-            # component's bbox). Solid auto-block feels grow it by a quarter
-            # of the auto pad (fringe coverage without swallowing
-            # neighbors); manual marks stay tight. Complex fills use the
-            # padded mask: LaMa reconstructs from the wider hole.
+            # component's bbox). Auto blocks (solid or complex background)
+            # grow it by a quarter of the auto pad — the same slim footprint
+            # feeds both the ring-color fill and the LaMa hole; manual
+            # marks refill tight on solid bg and use the padded mask on
+            # complex bg.
             core_crop = None
             if core_np is not None:
                 crop = core_np[y1:y2 + 1, x1:x2 + 1]
@@ -549,7 +550,7 @@ class CVAutoBackend(InpainterBackend):
                     detail = (
                         "mark: tight mask"
                         if comp_manual or core_crop is None
-                        else f"grow {solid_grow_px}px"
+                        else f"grow {grow_px}px"
                     )
                     progress_callback(
                         f"component {i + 1}/{n}: solid fill — "
@@ -560,12 +561,12 @@ class CVAutoBackend(InpainterBackend):
                 solid = np.empty_like(sub)
                 solid[:] = ring_color
                 if core_crop is not None:
-                    if comp_manual or solid_grow_px <= 0:
+                    if comp_manual or grow_px <= 0:
                         alpha = (core_crop * 255).astype(np.uint8)
                     else:
                         grow = cv2.getStructuringElement(
                             cv2.MORPH_ELLIPSE,
-                            (solid_grow_px * 2 + 1, solid_grow_px * 2 + 1),
+                            (grow_px * 2 + 1, grow_px * 2 + 1),
                         )
                         alpha = cv2.dilate(core_crop * 255, grow)
                     out[y1:y2 + 1, x1:x2 + 1] = cv2_edge_blend(
@@ -590,10 +591,24 @@ class CVAutoBackend(InpainterBackend):
                     progress_callback(
                         f"component {i + 1}/{n}: {reason}", base_pct,
                     )
-                # Complex backgrounds keep the padded mask: the wider hole
-                # gives LaMa/push-in more area to reconstruct cleanly.
+                # The hole handed to LaMa stays slim for auto blocks: the
+                # same quarter-grow as the solid fill, so erase footprints
+                # match regardless of background. Manual marks keep the
+                # full padded component (polygons carry the brush pad, and
+                # the wider hole gives the reconstruction room to work).
+                if comp_manual or core_crop is None or grow_px <= 0:
+                    hole_full = comp_full
+                else:
+                    grow = cv2.getStructuringElement(
+                        cv2.MORPH_ELLIPSE,
+                        (grow_px * 2 + 1, grow_px * 2 + 1),
+                    )
+                    hole_full = np.zeros_like(mask_np)
+                    hole_full[y1:y2 + 1, x1:x2 + 1] = cv2.dilate(
+                        core_crop * 255, grow,
+                    )
                 filled, method_used = _handle_complex_region(
-                    out, comp_full, x1, y1, x2, y2,
+                    out, hole_full, x1, y1, x2, y2,
                 )
                 out[y1:y2 + 1, x1:x2 + 1] = filled
                 if progress_callback:
@@ -626,13 +641,13 @@ class CVAutoBackend(InpainterBackend):
             image.size, x1, y1, x2, y2, text_boxes, pad_x, pad_y,
         )
         auto_px = pad_x + mask_pad
-        solid_grow_px = max(1, (auto_px // 2 + auto_px) // 4) if mask_pad > 0 else 0
+        grow_px = max(1, (auto_px // 2 + auto_px) // 4) if mask_pad > 0 else 0
         # Steps 2-3: analyze first, then solid fill or LaMa
         return self._auto_inpaint(
             image, mask,
             [{"x1": x1, "y1": y1, "x2": x2, "y2": y2}],
             solid_ratio, color_bucket, core_mask=core_mask,
-            solid_grow_px=solid_grow_px,
+            grow_px=grow_px,
             progress_callback=progress_callback,
         )
 
@@ -655,16 +670,16 @@ class CVAutoBackend(InpainterBackend):
         mask = build_iopoint_combined_mask(
             image.size, regions, pad_x + mask_pad, pad_y + mask_pad,
         )
-        # Un-padded core of the same regions: solid-background components
-        # refill from it. Blocks grow the refill by a quarter of the auto
-        # dilation (fringe coverage without the padded footprint); manual
-        # marks, flagged per region, stay tight.
+        # Un-padded core of the same regions: auto blocks grow it by a
+        # quarter of the auto dilation and use the result for BOTH the
+        # solid fill and the LaMa hole (fringe coverage without the padded
+        # footprint); manual marks, flagged per region, stay as built.
         core_mask = build_combined_core_mask(image.size, regions)
         auto_px = pad_x + mask_pad
-        solid_grow_px = max(1, (auto_px // 2 + auto_px) // 4) if mask_pad > 0 else 0
+        grow_px = max(1, (auto_px // 2 + auto_px) // 4) if mask_pad > 0 else 0
         # Steps 2-3: analyze first, then solid fill or LaMa
         return self._auto_inpaint(
             image, mask, regions, solid_ratio, color_bucket,
-            core_mask=core_mask, solid_grow_px=solid_grow_px,
+            core_mask=core_mask, grow_px=grow_px,
             progress_callback=progress_callback,
         )
