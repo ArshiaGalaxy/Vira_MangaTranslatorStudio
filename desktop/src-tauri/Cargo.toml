@@ -1,6 +1,6 @@
 [package]
 name = "vira"
-version = "1.0.0"
+version = "1.0.1"
 description = "Vira Manga Translator Studio — desktop launcher"
 authors = ["Arshia"]
 edition = "2021"

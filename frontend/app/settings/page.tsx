@@ -811,7 +811,7 @@ export default function SettingsPage() {
           {!updateState && updatePrefs && updatePrefs.enabled && (
             <section className="rounded-2xl border border-line bg-surface2 p-5 text-center">
               <p className="text-sm text-muted" dir="auto">
-                {t("set.upToDate", { v: updatePrefs.last_version ?? "1.0.0" })}
+                {t("set.upToDate", { v: updatePrefs.last_version ?? "1.0.1" })}
               </p>
             </section>
           )}
