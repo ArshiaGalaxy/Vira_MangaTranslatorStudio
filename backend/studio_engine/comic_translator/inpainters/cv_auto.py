@@ -447,11 +447,11 @@ class CVAutoBackend(InpainterBackend):
         into neighboring backgrounds when the fill mask is heavily padded.
 
         ``core_mask`` is the same regions without the pad dilation. Auto
-        blocks (solid OR complex background) pass the core grown by
-        ``grow_px`` (a quarter of the auto pad) as the fill/LaMa hole;
-        manual-mark components keep their masks as built — solid marks
-        refill from the tight core, complex marks use the full padded
-        mask.
+        blocks (solid OR complex background) pass that core — expanded by
+        ``grow_px``, currently 0, i.e. exactly the tight core — as the
+        fill/LaMa hole; manual-mark components keep their masks as built:
+        solid marks refill from the tight core, complex marks use the
+        full padded mask.
         """
         mask_np = (np.array(mask) > 128).astype(np.uint8)
         if not mask_np.any():
@@ -591,22 +591,24 @@ class CVAutoBackend(InpainterBackend):
                     progress_callback(
                         f"component {i + 1}/{n}: {reason}", base_pct,
                     )
-                # The hole handed to LaMa stays slim for auto blocks: the
-                # same quarter-grow as the solid fill, so erase footprints
-                # match regardless of background. Manual marks keep the
-                # full padded component (polygons carry the brush pad, and
-                # the wider hole gives the reconstruction room to work).
-                if comp_manual or core_crop is None or grow_px <= 0:
+                # The hole handed to LaMa follows the same rule as the
+                # solid fill: auto blocks pass the core (dilated only if
+                # grow_px > 0), so erase footprints match regardless of
+                # background. Manual marks keep the full padded component
+                # (polygons carry the brush pad, and the wider hole gives
+                # the reconstruction room to work).
+                if comp_manual or core_crop is None:
                     hole_full = comp_full
                 else:
-                    grow = cv2.getStructuringElement(
-                        cv2.MORPH_ELLIPSE,
-                        (grow_px * 2 + 1, grow_px * 2 + 1),
-                    )
+                    grow_hole = core_crop * 255
+                    if grow_px > 0:
+                        grow = cv2.getStructuringElement(
+                            cv2.MORPH_ELLIPSE,
+                            (grow_px * 2 + 1, grow_px * 2 + 1),
+                        )
+                        grow_hole = cv2.dilate(grow_hole, grow)
                     hole_full = np.zeros_like(mask_np)
-                    hole_full[y1:y2 + 1, x1:x2 + 1] = cv2.dilate(
-                        core_crop * 255, grow,
-                    )
+                    hole_full[y1:y2 + 1, x1:x2 + 1] = grow_hole
                 filled, method_used = _handle_complex_region(
                     out, hole_full, x1, y1, x2, y2,
                 )
@@ -640,8 +642,9 @@ class CVAutoBackend(InpainterBackend):
         core_mask = build_mask_pil(
             image.size, x1, y1, x2, y2, text_boxes, pad_x, pad_y,
         )
-        auto_px = pad_x + mask_pad
-        grow_px = max(1, (auto_px // 2 + auto_px) // 4) if mask_pad > 0 else 0
+        # User-tuned: auto blocks erase with the tight core, zero extra
+        # growth (see inpaint_batch).
+        grow_px = 0
         # Steps 2-3: analyze first, then solid fill or LaMa
         return self._auto_inpaint(
             image, mask,
@@ -675,8 +678,10 @@ class CVAutoBackend(InpainterBackend):
         # solid fill and the LaMa hole (fringe coverage without the padded
         # footprint); manual marks, flagged per region, stay as built.
         core_mask = build_combined_core_mask(image.size, regions)
-        auto_px = pad_x + mask_pad
-        grow_px = max(1, (auto_px // 2 + auto_px) // 4) if mask_pad > 0 else 0
+        # User-tuned: auto blocks erase with the tight core, zero extra
+        # growth (solid fill and LaMa hole alike). grow_px keeps the
+        # dilation machinery available if a fringe margin is ever wanted.
+        grow_px = 0
         # Steps 2-3: analyze first, then solid fill or LaMa
         return self._auto_inpaint(
             image, mask, regions, solid_ratio, color_bucket,
