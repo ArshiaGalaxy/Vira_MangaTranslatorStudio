@@ -1138,7 +1138,7 @@ identity before using the cache — a pattern worth discussing.
 | One bubble became two blocks across pages | Cross-page gate skipped or merge criteria failed | `boundary_region_height`, `enable_cross_page_merge`, `DialogueMerger` rules |
 | Persian text in wrong place after moving a box | `text_boxes` not rescaled | `TextBlocksView.partial_update` geometry branch |
 | Original text still visible after clean | Inpaint backend fell back to color fill; mask too small; region not translated | job log `Inpaint backend` / `inpaint FAILED`; `padding_x/y` |
-| Smudged/ghosted bubble after clean | Complex background went through push-in/OpenCV; LaMa not installed | install `simple_lama_inpainting`; check `cv_auto` log lines |
+| Smudged/ghosted bubble after clean | Complex background went through push-in/OpenCV; ONNX LaMa model missing | place `lama_fp32.onnx` in `studio_engine/models/` (or set `VIRA_LAMA_ONNX`); check `cv_auto` log lines |
 | Persian glyphs disconnected or tofu boxes | Font lacks glyphs, or Pillow built without libraqm; wrong font override | `backend/fonts/`, `FONT` env, Pillow build |
 | Preview and export differ | Preview used stale block state or a different font | `preview-layout` payload; `usePreviewLayout` debounce; font URL |
 | Translation returns nothing | Bad API key/model/endpoint; JSON parse failure | job log per-chunk errors; `parse_json_response`; Settings → Test Provider |

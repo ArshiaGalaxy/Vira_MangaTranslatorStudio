@@ -111,8 +111,6 @@ class InpaintConfig:
     lama_device: str = "auto"
     padding_x: int = 30
     padding_y: int = 30
-    pcleaner_profile: str | None = None
-    pcleaner_cli_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -227,8 +225,6 @@ def _build_config(raw: dict[str, Any]) -> AppConfig:
             lama_device=inp_raw.get("lama_device", "auto"),
             padding_x=int(inp_raw.get("padding_x", 30)),
             padding_y=int(inp_raw.get("padding_y", 30)),
-            pcleaner_profile=inp_raw.get("pcleaner_profile") or None,
-            pcleaner_cli_path=inp_raw.get("pcleaner_cli_path") or None,
         ),
         translator=TranslatorConfig(
             provider=_env("TRANSLATOR_PROVIDER", t_raw.get("provider", "openrouter")),

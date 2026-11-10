@@ -667,7 +667,7 @@ def erase_region(
     """Erase text regions. Supports three methods:
     - 'color': solid background-color fill (fast, simple)
     - 'opencv': OpenCV Navier-Stokes inpainting (fast, decent quality)
-    - 'lama': LaMa neural inpainting (best quality, requires torch)
+    - 'lama': LaMa neural inpainting (best quality, ONNX runtime)
     """
     if image is None:
         draw.rectangle([x1 - pad, y1 - pad, x2 + pad, y2 + pad], fill=color)
@@ -680,7 +680,7 @@ def erase_region(
     pad_x = inpaint_config.padding_x if inpaint_config else pad
     pad_y = inpaint_config.padding_y if inpaint_config else pad
 
-    if method in ("cv_auto", "opencv", "pcleaner"):
+    if method in ("cv_auto", "opencv"):
         try:
             from comic_translator.inpaint import inpaint
 
@@ -692,12 +692,6 @@ def erase_region(
                 opencv_radius=inpaint_config.opencv_radius if inpaint_config else 5,
                 opencv_method=inpaint_config.opencv_method if inpaint_config else "ns",
                 device=inpaint_config.lama_device if inpaint_config else "auto",
-                pcleaner_profile=(
-                    inpaint_config.pcleaner_profile if inpaint_config else None
-                ),
-                pcleaner_cli_path=(
-                    inpaint_config.pcleaner_cli_path if inpaint_config else None
-                ),
             )
             image.paste(result)
             _invalidate_np_cache(image)

@@ -12,7 +12,8 @@ Algorithm (analyze-first):
        feathered edge blend (OpenCV inpainting is redundant here because the
        ring already tells us the background color).
      - Otherwise (<85%) the background is complex: inpaint the region with
-       SimpleLaMa (native 512x512), falling back to a texture push-in fill
+       LaMa via ONNX Runtime (native 512x512, same 512 mirror-padded crops
+       the torch SimpleLama path used), falling back to a texture push-in fill
        — or OpenCV inpainting for oversized holes — when LaMa is
        unavailable.
 """
@@ -21,7 +22,9 @@ from __future__ import annotations
 
 import importlib.util
 import logging
+import os
 import threading
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -37,30 +40,108 @@ from comic_translator.inpainters.common import (
 
 logger = logging.getLogger(__name__)
 
-# ── SimpleLaMa (optional neural fallback for complex regions) ─────────────────
+# ── LaMa via ONNX Runtime (optional neural fallback for complex regions) ──────
+
+_LAMA_ONNX_NAME = "lama.onnx"
 
 _lama = None
 _lama_failed = False
 _lama_lock = threading.Lock()
 
 
-def _lama_available() -> bool:
-    """Cheap availability probe (no model download, no weights load).
+def _lama_onnx_path() -> Path | None:
+    """Resolve the LaMa ONNX model file (first match wins, no downloads).
 
-    torch is guaranteed importable here (the package pre-imports it before
-    PaddleOCR so the Windows DLL load order works out), so only the LaMa
-    package itself is checked. Used for the upfront progress line; the model
-    itself is only constructed on the first complex region.
+    Search order: ``VIRA_LAMA_ONNX`` env var override, the engine's
+    ``models/`` folder (dev checkouts / shipped installs), and the desktop
+    app's data folder.
     """
-    return importlib.util.find_spec("simple_lama_inpainting") is not None
+    env = os.environ.get("VIRA_LAMA_ONNX")
+    if env and Path(env).is_file():
+        return Path(env)
+    candidates = [
+        Path(__file__).resolve().parents[2] / "models" / _LAMA_ONNX_NAME,
+        Path(os.environ.get("LOCALAPPDATA", "")) / "Vira Translator Studio"
+        / "models" / _LAMA_ONNX_NAME,
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _lama_available() -> bool:
+    """Cheap availability probe (no session load, no heavy import).
+
+    Checks that onnxruntime is importable and the ONNX weights file exists.
+    Used for the upfront progress line; the session itself is only
+    constructed on the first complex region.
+    """
+    return (
+        importlib.util.find_spec("onnxruntime") is not None
+        and _lama_onnx_path() is not None
+    )
+
+
+class _OnnxLama:
+    """LaMa inpainting via ONNX Runtime (CPU) — drop-in for SimpleLama@512.
+
+    Call signature matches the old simple_lama_inpainting.SimpleLama so the
+    region code stays unchanged: (PIL RGB image, PIL L mask) -> PIL RGB.
+    The export expects ``l_image_`` as float 0-1 (NOT 0-255) and ``l_mask_``
+    as {0, 1}, both fixed 512x512. cv_auto already scales its context crops
+    to 512 with mirror padding, so inputs pass straight through — no
+    letterboxing, no rescaling (that was slower and softer than torch).
+    Non-512 inputs (defensive only) get mirror-padded, same convention.
+    """
+
+    SIZE = 512
+
+    def __init__(self, model_path: Path):
+        import onnxruntime as ort
+
+        opts = ort.SessionOptions()
+        opts.log_severity_level = 3
+        # Bound the threadpool: on hybrid (P/E-core) laptops and memory-tight
+        # machines a 16-thread spinning pool measurably hurts (and can stall).
+        # 4 threads measured best under memory pressure; override with
+        # VIRA_ORT_THREADS when more headroom exists.
+        threads = int(os.environ.get("VIRA_ORT_THREADS", "4"))
+        opts.intra_op_num_threads = max(1, threads)
+        opts.inter_op_num_threads = 1
+        opts.add_session_config_entry("session.intra_op.allow_spinning", "0")
+        self._session = ort.InferenceSession(
+            str(model_path), opts, providers=["CPUExecutionProvider"]
+        )
+
+    def __call__(self, image: Image.Image, mask: Image.Image) -> Image.Image:
+        ci = np.array(image.convert("RGB"))
+        cm = np.array(mask.convert("L"))
+        s = self.SIZE
+        if ci.shape[0] != s or ci.shape[1] != s:
+            # Defensive path (cv_auto always sends exactly 512): mirror-pad
+            # into the fixed frame instead of distorting or letterboxing.
+            ph = max(0, s - ci.shape[0])
+            pw = max(0, s - ci.shape[1])
+            ci = np.pad(ci, ((0, ph), (0, pw), (0, 0)), mode="symmetric")[:s, :s]
+            cm = np.pad(cm, ((0, ph), (0, pw)), mode="symmetric")[:s, :s]
+        out = self._session.run(
+            None,
+            {
+                "l_image_": ci.transpose(2, 0, 1)[None].astype(np.float32) / 255.0,
+                "l_mask_": (cm > 0).astype(np.float32)[None, None],
+            },
+        )[0][0]
+        out = np.clip(out.transpose(1, 2, 0), 0, 255).astype(np.uint8)
+        return Image.fromarray(out)
 
 
 def _get_lama():
-    """Load and cache a SimpleLama model on the first complex region.
+    """Load and cache the ONNX LaMa session on the first complex region.
 
     Returns None if unavailable. A failed load latches so later components
     do not retry it, and the lock keeps concurrent jobs (one thread per
-    project) from constructing the model twice.
+    project) from constructing the session twice.
     """
     global _lama, _lama_failed
     if _lama is not None:
@@ -73,15 +154,17 @@ def _get_lama():
         if _lama_failed:
             return None
         try:
-            import torch
-            from simple_lama_inpainting import SimpleLama
-
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            logger.info("Loading SimpleLaMa on %s (first complex region)...", device)
-            _lama = SimpleLama(device=device)
+            model_path = _lama_onnx_path()
+            if model_path is None:
+                raise FileNotFoundError(
+                    f"{_LAMA_ONNX_NAME} not found (set VIRA_LAMA_ONNX or place it "
+                    f"in the engine models/ folder)"
+                )
+            logger.info("Loading LaMa ONNX %s (first complex region)...", model_path)
+            _lama = _OnnxLama(model_path)
         except Exception as e:  # noqa: BLE001 - any failure -> graceful fallback
             _lama_failed = True
-            logger.warning("SimpleLaMa unavailable; complex regions use push-in fill: %s", e)
+            logger.warning("LaMa ONNX unavailable; complex regions use push-in fill: %s", e)
             _lama = None
         return _lama
 
@@ -210,7 +293,7 @@ def _lama_inpaint_region(
     x1: int, y1: int, x2: int, y2: int,
     lama=None,
 ) -> np.ndarray | None:
-    """Inpaint a component with SimpleLaMa at its native 512x512 input size.
+    """Inpaint a component with LaMa via the ONNX Runtime session.
 
     The context crop (bbox + margin) is scaled uniformly to fit 512x512
     (small crops keep native resolution) and mirror-padded to fill the
@@ -265,7 +348,7 @@ def _lama_inpaint_region(
         filled = lama(Image.fromarray(img_512), Image.fromarray(mask_512, mode="L"))
         filled_np = np.array(filled.convert("RGB"))[:nh, :nw]
     except Exception as e:  # noqa: BLE001
-        logger.warning("SimpleLaMa inference failed: %s", e)
+        logger.warning("LaMa ONNX inference failed: %s", e)
         return None
 
     if (nw, nh) != (cw, ch):
@@ -291,7 +374,7 @@ def _handle_complex_region(
 ) -> tuple[np.ndarray, str]:
     """Inpaint a region whose background is complex (< solid_ratio).
 
-    Tries SimpleLaMa first and reports what actually filled the region so
+    Tries LaMa (ONNX) first and reports what actually filled the region so
     the job log is truthful. Returns (filled bbox crop (RGB), method used).
     """
     lama = _get_lama()
@@ -301,7 +384,7 @@ def _handle_complex_region(
         else None
     )
     if lama_crop is not None:
-        return lama_crop, "SimpleLaMa"
+        return lama_crop, "LaMa"
 
     # Expand the crop with a context margin: a component whose mask fills
     # its own bbox (e.g. a plain rectangular mask) would otherwise leave
@@ -316,7 +399,7 @@ def _handle_complex_region(
     if not hole.any():
         return sub[bbox].copy(), "no-op (empty mask)"
     if lama is None:
-        reason = "SimpleLaMa unavailable"
+        reason = "LaMa unavailable"
     else:
         reason = "region too large or LaMa inference failed"
     if hole.sum() > _PUSH_IN_MAX_HOLE:
@@ -330,7 +413,7 @@ def _handle_complex_region(
 
 
 class CVAutoBackend(InpainterBackend):
-    """Analyze-first inpainting: solid-color fill or SimpleLaMa per component."""
+    """Analyze-first inpainting: solid-color fill or LaMa per component."""
 
     @property
     def name(self) -> str:
@@ -374,14 +457,14 @@ class CVAutoBackend(InpainterBackend):
 
         if progress_callback:
             # One upfront truth line: is neural inpainting even possible?
-            # Import-probe only: actually loading SimpleLaMa (which may need
-            # a ~200 MB model download) is deferred to the first complex
-            # region so solid-only pages never pay for it.
+            # Import-probe only: actually loading LaMa (which needs the
+            # ~208 MB ONNX file) is deferred to the first complex region so
+            # solid-only pages never pay for it.
             lama_ok = _lama_available()
             progress_callback(
-                "SimpleLaMa: available"
+                "LaMa (ONNX): available"
                 if lama_ok
-                else "SimpleLaMa: NOT installed — complex regions will use push-in fill",
+                else "LaMa (ONNX): NOT available — complex regions will use push-in fill",
                 0.04,
             )
 
@@ -438,7 +521,7 @@ class CVAutoBackend(InpainterBackend):
                     (comp * 255).astype(np.uint8), solid, sub,
                 )
             else:
-                # < solid_ratio: complex background — try SimpleLaMa, fall
+                # < solid_ratio: complex background — try LaMa, fall
                 # back to push-in fill. The follow-up line reports the
                 # algorithm that actually ran.
                 if progress_callback:
@@ -482,7 +565,7 @@ class CVAutoBackend(InpainterBackend):
         mask = build_mask_pil(
             image.size, x1, y1, x2, y2, text_boxes, pad_x + mask_pad, pad_y + mask_pad,
         )
-        # Steps 2-3: analyze first, then solid fill or SimpleLaMa
+        # Steps 2-3: analyze first, then solid fill or LaMa
         return self._auto_inpaint(
             image, mask,
             [{"x1": x1, "y1": y1, "x2": x2, "y2": y2}],
@@ -508,7 +591,7 @@ class CVAutoBackend(InpainterBackend):
         mask = build_iopoint_combined_mask(
             image.size, regions, pad_x + mask_pad, pad_y + mask_pad,
         )
-        # Steps 2-3: analyze first, then solid fill or SimpleLaMa
+        # Steps 2-3: analyze first, then solid fill or LaMa
         return self._auto_inpaint(
             image, mask, regions, solid_ratio, color_bucket,
             progress_callback=progress_callback,

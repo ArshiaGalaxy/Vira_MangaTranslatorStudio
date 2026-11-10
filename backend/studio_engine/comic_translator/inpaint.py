@@ -4,7 +4,6 @@ Backends (auto-detected, best available first):
   - cv_auto: OpenCV inpainting + automatic solid-color normalization
   - color:   Solid background-color fill (fastest, lowest quality)
   - opencv:  OpenCV Navier-Stokes / Telea (always available, no extra deps)
-  - pcleaner: Full pipeline via PanelCleaner (text detection + masking + inpainting)
 
 Fallback chain: cv_auto -> opencv -> color
 
@@ -35,17 +34,12 @@ def inpaint(
     opencv_radius: int = 5,
     opencv_method: str = "ns",
     device: str = "auto",
-    pcleaner_profile: str | None = None,
-    pcleaner_cli_path: str | None = None,
     solid_ratio: float = 0.85,
     color_bucket: int = 16,
     mask_pad: int = 0,
     progress_callback=None,
     ) -> Image.Image:
-    backend = _create_backend(
-        method, device=device,
-        pcleaner_cli_path=pcleaner_cli_path, pcleaner_profile=pcleaner_profile,
-    )
+    backend = _create_backend(method, device=device)
     return backend.inpaint_single(
         image, x1, y1, x2, y2,
         text_boxes=text_boxes,
@@ -54,8 +48,6 @@ def inpaint(
         opencv_radius=opencv_radius,
         opencv_method=opencv_method,
         device=device,
-        pcleaner_profile=pcleaner_profile,
-        pcleaner_cli_path=pcleaner_cli_path,
         solid_ratio=solid_ratio,
         color_bucket=color_bucket,
         mask_pad=mask_pad,
@@ -72,17 +64,12 @@ def inpaint_batch(
     opencv_radius: int = 5,
     opencv_method: str = "ns",
     device: str = "auto",
-    pcleaner_profile: str | None = None,
-    pcleaner_cli_path: str | None = None,
     solid_ratio: float = 0.85,
     color_bucket: int = 16,
     mask_pad: int = 0,
     progress_callback=None,
     ) -> Image.Image:
-    backend = _create_backend(
-        method, device=device,
-        pcleaner_cli_path=pcleaner_cli_path, pcleaner_profile=pcleaner_profile,
-    )
+    backend = _create_backend(method, device=device)
     return backend.inpaint_batch(
         image, regions,
         pad_x=pad_x,
@@ -90,8 +77,6 @@ def inpaint_batch(
         opencv_radius=opencv_radius,
         opencv_method=opencv_method,
         device=device,
-        pcleaner_profile=pcleaner_profile,
-        pcleaner_cli_path=pcleaner_cli_path,
         solid_ratio=solid_ratio,
         color_bucket=color_bucket,
         mask_pad=mask_pad,
@@ -104,30 +89,22 @@ _backend_cache: dict[str, object] = {}
 # Fallback chain: if a backend fails to load, try these in order
 _FALLBACK: dict[str, list[str]] = {
     "cv_auto": ["opencv", "color"],
-    "pcleaner": ["opencv", "color"],
 }
 
 
-def _create_backend(method: str, device: str | None = None,
-                    pcleaner_cli_path: str | None = None,
-                    pcleaner_profile: str | None = None):
+def _create_backend(method: str, device: str | None = None):
     """Create an inpainting backend — cached, with automatic fallback on load failure."""
     from comic_translator.config import InpaintConfig
     from comic_translator.inpainters import create_inpainter
 
     # Build cache key from the parameters that affect backend selection
-    cache_key = (
-        f"{method}:{device or 'auto'}"
-        f":{pcleaner_cli_path or ''}:{pcleaner_profile or ''}"
-    )
+    cache_key = f"{method}:{device or 'auto'}"
     if cache_key in _backend_cache:
         return _backend_cache[cache_key]
 
     cfg = InpaintConfig(
         method=method,
         lama_device=device or "auto",
-        pcleaner_cli_path=pcleaner_cli_path,
-        pcleaner_profile=pcleaner_profile,
     )
 
     # Try the requested backend, then fallbacks

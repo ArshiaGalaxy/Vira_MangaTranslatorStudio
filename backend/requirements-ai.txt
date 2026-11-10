@@ -1,10 +1,12 @@
 # Optional AI dependencies: automatic OCR, Gemini provider, and LaMa inpainting.
 # Install after requirements-core.txt when these features are needed.
---extra-index-url https://download.pytorch.org/whl/cpu
 paddleocr==3.7.0
 paddlepaddle==3.2.2
 scikit-learn==1.7.2
 google-generativeai==0.8.6
-simple-lama-inpainting==0.1.2
-torch==2.2.2+cpu
-torchvision==0.17.2+cpu
+# LaMa inpainting runs via ONNX Runtime (no torch). The ~198 MB lama.onnx
+# weights file (native 512x512, same crops torch SimpleLama received) ships
+# with the installer / GitHub Releases and must end up in
+# studio_engine/models/ (or %LOCALAPPDATA%\Vira Translator Studio\models\,
+# or point VIRA_LAMA_ONNX at it).
+onnxruntime==1.23.2

@@ -73,8 +73,6 @@
     "tile_overlap": 64,
     "padding_x": 4,
     "padding_y": 4,
-    "pcleaner_profile": null,
-    "pcleaner_cli_path": null,
     "iopaint_model": "lama",
     "iopaint_hd_strategy": "Crop",
     "iopaint_crop_trigger_size": 800,

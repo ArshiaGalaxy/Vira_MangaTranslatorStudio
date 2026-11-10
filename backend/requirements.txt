@@ -3,7 +3,7 @@
 #
 # - Core install (manual editing, rendering, PDF/ZIP/PSD export, OpenRouter/Custom translation):
 #     pip install -r requirements-core.txt
-# - Optional AI features (automatic OCR, Gemini, LaMa inpainting):
+# - Optional AI features (automatic OCR, Gemini, ONNX LaMa inpainting):
 #     pip install -r requirements-ai.txt
 #
 # This file combines both tiers. It is intentionally not a full transitive freeze:
@@ -13,8 +13,9 @@
 # NOTE: pymupdf4llm/pymupdf_layout (2.x, requiring PyMuPDF>=2.x) are omitted because
 # they are unused in this codebase (only `fitz`/PyMuPDF is imported) and conflict with
 # the preserved PyMuPDF==1.28.2 fix.
-
---extra-index-url https://download.pytorch.org/whl/cpu
+#
+# NOTE: torch/torchvision/simple-lama-inpainting were dropped in 1.0.1 — LaMa
+# inpainting now runs on onnxruntime with lama_fp32.onnx (see requirements-ai.txt).
 
 # --- Core (from requirements-core.txt) ---
 -r requirements-core.txt

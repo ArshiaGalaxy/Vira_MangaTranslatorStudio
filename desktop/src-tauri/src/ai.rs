@@ -393,8 +393,6 @@ fn phase1_pip_download(
                 wheels.to_string_lossy().into_owned(),
                 "--find-links".into(),
                 wheels.to_string_lossy().into_owned(),
-                "--extra-index-url".into(),
-                "https://download.pytorch.org/whl/cpu".into(),
                 "--retries".into(),
                 PIP_RETRIES.into(),
                 "--timeout".into(),

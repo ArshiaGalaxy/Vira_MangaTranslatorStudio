@@ -23,5 +23,7 @@ backend/.venv
 # Local project state
 .freebuff/
 backend/staticfiles/
+# ONNX model weights are large binaries fetched from GitHub Releases, not git content
+backend/studio_engine/models/*.onnx
 Thumbs.db
 .DS_Store

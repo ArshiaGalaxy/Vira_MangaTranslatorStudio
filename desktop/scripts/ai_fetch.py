@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Resumable, hash-verified wheel pre-fetcher for Vira's AI extras (P0 phase).
 
-Downloads the *directly pinned* wheels from requirements-ai.txt (torch,
-paddlepaddle, …) with HTTP Range resume, exponential backoff, and SHA-256
+Downloads the *directly pinned* wheels from requirements-ai.txt (paddlepaddle,
+onnxruntime, …) with HTTP Range resume, exponential backoff, and SHA-256
 verification into a persistent cache directory. Partial downloads are kept
 as ``<file>.part`` so interrupted transfers continue across retries AND
 application restarts. Verified files are never downloaded again.
@@ -44,11 +44,9 @@ CHUNK = 64 * 1024
 PROGRESS_INTERVAL = 0.3  # seconds between PROGRESS records per file
 MAX_BACKOFF = 60.0
 
-# (index base, has /simple/ prefix) — order matters: PyTorch first so the
-# +cpu builds resolve against the right index before falling back to PyPI.
+# Index base only (PyPI) — torch wheels are no longer needed since LaMa
+# moved to onnxruntime (1.0.1).
 INDEXES = [
-    "https://download.pytorch.org/whl/cpu/simple",
-    "https://download.pytorch.org/whl/cpu",
     "https://pypi.org/simple",
 ]
 
@@ -98,8 +96,8 @@ def print_proxy():
 # ── Selective proxying (per host) ────────────────────────────────────────────
 # The system proxy exists because *some* hosts are unreachable directly
 # (DNS responses dropped → getaddrinfo fails), but routing EVERYTHING
-# through the tunnel hurts hosts that do resolve: long transfers (the
-# 200 MB torch wheel) die every few MB inside the tunnel, while the same
+# through the tunnel hurts hosts that do resolve: long transfers die every
+# few MB inside the tunnel, while the same
 # URL streamed fine over a direct connection. So: probe each host's DNS
 # once, go direct when it resolves, proxy only when it doesn't; if a
 # direct host later fails with network errors repeatedly, fall back to
@@ -108,8 +106,6 @@ def print_proxy():
 PROXY_PROBE_HOSTS = [
     "pypi.org",
     "files.pythonhosted.org",
-    "download.pytorch.org",
-    "download-r2.pytorch.org",
 ]
 DIRECT_FAILS_BEFORE_PROXY = 2  # consecutive network failures → route via proxy
 

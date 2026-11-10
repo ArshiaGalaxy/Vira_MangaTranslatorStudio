@@ -97,8 +97,8 @@ def _allowed_config_sections() -> dict[str, set[str]]:
 
     PUT /api/config merges raw client JSON into the config the engine later
     consumes; without this filter an authenticated client could plant keys
-    like `inpaint.pcleaner_cli_path` (later passed to subprocess) or anything
-    else the engine might treat as a path/flag. Paths are dotted; the JSON
+    like `inpaint.iopaint_model` or anything else the engine might treat as
+    a path/flag. Paths are dotted; the JSON
     schema nests provider keys under translator.openrouter / translator.gemini
     while the dataclass flattens them, so the JSON shape is whitelisted here.
     """
@@ -164,11 +164,6 @@ def _validate_config_paths(cfg: dict) -> None:
         if (fonts_dir / Path(str(val)).name).resolve().is_file():
             continue
         raise ValueError(f"font.{key} must point inside the fonts directory")
-
-    inpaint = cfg.get("inpaint") or {}
-    cli = inpaint.get("pcleaner_cli_path")
-    if cli and not Path(cli).is_file():
-        raise ValueError("inpaint.pcleaner_cli_path must be an existing file")
 
 
 def _path_inside(path_str: str, root: Path) -> bool:
@@ -1170,8 +1165,6 @@ def _inpaint_pages(ctx: JobContext, project: Project, config,
                 opencv_radius=config.inpaint.opencv_radius,
                 opencv_method=config.inpaint.opencv_method,
                 device=config.inpaint.lama_device,
-                pcleaner_profile=config.inpaint.pcleaner_profile,
-                pcleaner_cli_path=config.inpaint.pcleaner_cli_path,
                 solid_ratio=config.inpaint.cv_auto_solid_ratio,
                 color_bucket=config.inpaint.cv_auto_color_bucket,
                 mask_pad=config.inpaint.cv_auto_mask_pad,

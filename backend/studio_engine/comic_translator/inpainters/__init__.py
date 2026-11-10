@@ -23,7 +23,6 @@ _BACKEND_REGISTRY: dict[str, tuple[str, str]] = {
     "cv_auto": ("comic_translator.inpainters.cv_auto", "CVAutoBackend"),
     "color": ("comic_translator.inpainters.color", "ColorFillBackend"),
     "opencv": ("comic_translator.inpainters.opencv", "OpenCVBackend"),
-    "pcleaner": ("comic_translator.inpainters.pcleaner", "PcleanerBackend"),
 }
 
 BACKENDS = list(_BACKEND_REGISTRY.keys())
@@ -33,7 +32,7 @@ def create_inpainter(method: str, config: InpaintConfig | None = None) -> Inpain
     """Create an inpainting backend by name.
 
     Args:
-        method: Backend identifier ('cv_auto', 'color', 'opencv', 'pcleaner').
+        method: Backend identifier ('cv_auto', 'color', 'opencv').
         config: InpaintConfig with backend-specific settings.
 
     Returns:
@@ -75,13 +74,7 @@ def create_inpainter(method: str, config: InpaintConfig | None = None) -> Inpain
 
 def _extract_load_kwargs(method: str, config: InpaintConfig) -> dict:
     """Extract backend-specific load kwargs from InpaintConfig."""
-    base = {}
-
-    if method == "pcleaner":
-        base["cli_path"] = getattr(config, "pcleaner_cli_path", None)
-        base["pcleaner_profile"] = getattr(config, "pcleaner_profile", None)
-
-    return base
+    return {}
 
 
 def get_backend_names() -> list[str]:

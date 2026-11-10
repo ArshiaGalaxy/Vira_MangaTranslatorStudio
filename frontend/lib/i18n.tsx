@@ -700,7 +700,6 @@ export const dict = {
   "set.grp.opencv": { en: "OpenCV", fa: "OpenCV" },
   "set.grp.autoMode": { en: "Auto mode", fa: "حالت خودکار" },
   "set.grp.neural": { en: "Neural (LaMa)", fa: "شبکه عصبی (LaMa)" },
-  "set.grp.pcleaner": { en: "PCleaner", fa: "PCleaner" },
   "set.grp.other": { en: "Other", fa: "سایر" },
   "set.advanced": { en: "Advanced", fa: "پیشرفته" },
   "set.fontDefault": { en: "Default (Mikhak)", fa: "پیش‌فرض (میخک)" },
