@@ -23,6 +23,8 @@ backend/.venv
 # Local project state
 .freebuff/
 backend/staticfiles/
+# Runtime state written by the LAN gateway (contains the PIN hash)
+backend/lan.json
 # ONNX model weights are large binaries fetched from GitHub Releases, not git content
 backend/studio_engine/models/*.onnx
 Thumbs.db
