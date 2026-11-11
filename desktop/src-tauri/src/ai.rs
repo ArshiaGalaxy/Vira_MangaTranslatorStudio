@@ -232,6 +232,14 @@ fn phase0_fetch(
             req.to_string_lossy().into_owned(),
             "--dest".into(),
             wheels.to_string_lossy().into_owned(),
+            // Direct assets (e.g. the ~200 MB LaMa ONNX model) go into the
+            // app data dir, where the engine searches for them. Not wheels:
+            // a Core install cannot load them without onnxruntime anyway.
+            "--assets".into(),
+            payload.join("backend").join("requirements-ai-assets.txt")
+                .to_string_lossy().into_owned(),
+            "--asset-dest".into(),
+            crate::paths::user_data_dir().join("models").to_string_lossy().into_owned(),
         ],
         cwd: payload.clone(),
         env: env.to_vec(),

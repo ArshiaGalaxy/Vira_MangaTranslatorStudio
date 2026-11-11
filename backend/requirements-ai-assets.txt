@@ -1,0 +1,10 @@
+# Direct-asset spec for the AI install (NOT pip wheels).
+# Format:  url|filename|sha256      (comments and blanks skipped)
+# The launcher's ai_fetch.py downloads each into --asset-dest with HTTP
+# Range resume and SHA-256 verification, exactly like the wheel phase.
+#
+# LaMa inpainting model. The engine searches for lama.onnx in
+# %LOCALAPPDATA%\Vira Translator Studio\models\ — that is what
+# --asset-dest points at. Verify sha256 with:
+#   Get-FileHash lama.onnx -Algorithm SHA256
+https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio/releases/download/v1.0.0/lama.onnx|lama.onnx|351e481e287f345b7fbfd026068cfb9ec0c7f24b440e6501458ebe54a833d1a1

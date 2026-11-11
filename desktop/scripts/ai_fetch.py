@@ -183,6 +183,30 @@ def parse_requirements(path):
     return pins
 
 
+def parse_assets(path):
+    """Parse direct-asset spec lines: `url|filename|sha256` (comments skipped).
+
+    Unlike wheels, assets are explicit downloads with a pinned SHA-256 —
+    used for big model files that are not pip packages (e.g. lama.onnx).
+    """
+    assets = []
+    with open(path, encoding="utf-8-sig", errors="replace") as fh:
+        for raw in fh:
+            line = raw.split("#", 1)[0].strip()
+            if not line:
+                continue
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) != 3 or not all(parts):
+                out("WARN", path, f"skipping malformed asset line: {line[:120]}")
+                continue
+            url, filename, sha = parts
+            assets.append({
+                "pkg": filename, "version": "", "filename": filename,
+                "url": url, "sha256": sha, "size": 0,
+            })
+    return assets
+
+
 def fetch_index(index_base, pkg):
     """Return ([(filename, url, sha256|None)], error) from a PEP 503 index.
 
@@ -334,7 +358,7 @@ class Progress:
 
 
 def fetch_one(item, dest_dir, prog, total_box):
-    """Download one wheel with resume+backoff. Returns bytes or raises."""
+    """Download one file (wheel or asset) with resume+backoff."""
     filename, url, sha, size = item["filename"], item["url"], item["sha256"], item["size"]
     host = urllib.parse.urlparse(url).hostname or ""
     final = os.path.join(dest_dir, filename)
@@ -433,14 +457,20 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--requirements")
     ap.add_argument("--dest")
+    ap.add_argument("--assets",
+                    help="direct-asset spec file (url|filename|sha256 lines)")
+    ap.add_argument("--asset-dest",
+                    help="directory for the files listed by --assets")
     ap.add_argument("--print-proxy", action="store_true",
                     help="print the effective proxy URL (or 'none') and exit")
     args = ap.parse_args()
 
     if args.print_proxy:
         return print_proxy()
-    if not args.requirements or not args.dest:
-        ap.error("--requirements and --dest are required unless --print-proxy")
+    if args.requirements and not args.dest:
+        ap.error("--dest is required together with --requirements")
+    if not args.requirements and not args.assets:
+        ap.error("pass --requirements and/or --assets (unless --print-proxy)")
 
     # Selective proxying: per-host DNS probe decides direct vs tunnel
     # (see opener_for / host_resolves). The pip phases learn the same
@@ -450,13 +480,19 @@ def main():
 
     out("VIRA_FETCH", 1)
     out("PROXY", _proxy_url or "none")
-    if not os.path.isfile(args.requirements):
+    if args.requirements and not os.path.isfile(args.requirements):
         out("ERR", "setup", args.requirements, "requirements file not found")
         return 2
-    os.makedirs(args.dest, exist_ok=True)
+    if args.assets and not os.path.isfile(args.assets):
+        out("ERR", "setup", args.assets, "assets spec file not found")
+        return 2
+    if args.requirements:
+        os.makedirs(args.dest, exist_ok=True)
+    if args.asset_dest:
+        os.makedirs(args.asset_dest, exist_ok=True)
 
-    pins = parse_requirements(args.requirements)
-    if not pins:
+    pins = parse_requirements(args.requirements) if args.requirements else []
+    if args.requirements and not pins:
         out("ERR", "setup", args.requirements, "no name==version pins found")
         return 2
 
@@ -480,18 +516,24 @@ def main():
         filename, url, sha = picked
         items.append({
             "pkg": pkg, "version": version, "filename": filename,
-            "url": url, "sha256": sha, "size": 0,
+            "url": url, "sha256": sha, "size": 0, "dest": args.dest,
         })
 
+    asset_items = parse_assets(args.assets) if args.assets else []
+    for it in asset_items:
+        it["dest"] = args.asset_dest
+    items.extend(asset_items)
+
     if not items:
-        out("ERR", "setup", args.requirements,
-            "no wheels could be resolved from any index (network unreachable?)")
+        out("ERR", "setup", args.requirements or args.assets,
+            "nothing to fetch: no wheels resolved and no assets specified "
+            "(network unreachable?)")
         return 2
 
     # Skip already-verified files (requirement: never re-download).
     pending, ok_bytes = [], 0
     for it in items:
-        final = os.path.join(args.dest, it["filename"])
+        final = os.path.join(it["dest"], it["filename"])
         size = it.get("size") or 0
         if os.path.exists(final) and is_valid_wheel(final, it["sha256"], 0):
             it["size"] = os.path.getsize(final)
@@ -517,7 +559,7 @@ def main():
         out("PKG", i, n, it["filename"])
         prog = Progress(done_bytes, total_box, i, n)
         try:
-            got = fetch_one(it, args.dest, prog, total_box)
+            got = fetch_one(it, it["dest"], prog, total_box)
         except RuntimeError as e:
             kind, subject, msg = str(e).split("|", 2)
             out("ERR", kind, subject, msg)

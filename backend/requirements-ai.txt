@@ -5,8 +5,9 @@ paddlepaddle==3.2.2
 scikit-learn==1.7.2
 google-generativeai==0.8.6
 # LaMa inpainting runs via ONNX Runtime (no torch). The ~198 MB lama.onnx
-# weights file (native 512x512, same crops torch SimpleLama received) ships
-# with the installer / GitHub Releases and must end up in
-# studio_engine/models/ (or %LOCALAPPDATA%\Vira Translator Studio\models\,
-# or point VIRA_LAMA_ONNX at it).
+# weights file is NOT a pip package and is NOT shipped in the payload:
+# ai_fetch.py downloads it (SHA-verified, resumable) into
+# %LOCALAPPDATA%\Vira Translator Studio\models\ during Install AI —
+# see requirements-ai-assets.txt for the pinned URL + hash. Dev checkouts
+# can instead keep it in studio_engine/models/ or point VIRA_LAMA_ONNX at it.
 onnxruntime==1.23.2

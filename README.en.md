@@ -79,7 +79,7 @@ If you just want to install and use the app on Windows, you need **none** of the
 >
 > 🔄 **Updates:** the app checks GitHub for new releases by itself and offers a **one-click in-app update** — you never re-download the installer manually.
 >
-> 🤖 AI features (auto OCR, Gemini, LaMa) are optional and install later from **inside the app** via the Install AI button (requires internet).
+> 🤖 AI features (auto OCR, Gemini, LaMa) are optional and install later from **inside the app** via the Install AI button (requires internet; ~410 MB total — packages + the LaMa model — resumable and SHA-verified).
 >
 > 🖥 Minimum requirement: 64-bit Windows 10/11. If WebView2 is missing, the installer downloads and sets it up itself (the only step that needs internet).
 >
