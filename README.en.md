@@ -69,13 +69,15 @@ A full-stack, local-first studio for Persian manga/manhwa translation:
 
 If you just want to install and use the app on Windows, you need **none** of the prerequisites below:
 
-1. 📥 Download **`Vira_1.0.0_x64-setup.exe`** from [Releases](https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio/releases) and run it.
+1. 📥 Download **`Vira_1.0.1_x64-setup.exe`** from [Releases](https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio/releases) and run it.
 2. ✔ Simple, fast install (~1 minute) — Python, Node and every library are **bundled inside the installer**; dependencies are installed **offline** (no internet needed).
 3. 🔛 After installing, open **Vira** from the Start menu → press **Start** → the studio opens inside the app window itself.
 
 > ⏱ **First run** takes about a minute (library + database setup); **every launch after that takes a few seconds**.
 >
 > 📁 Your data (database, images, settings) is stored safely in `%LOCALAPPDATA%\Vira Translator Studio` — it is **never removed by updates or uninstall**.
+>
+> 🔄 **Updates:** the app checks GitHub for new releases by itself and offers a **one-click in-app update** — you never re-download the installer manually.
 >
 > 🤖 AI features (auto OCR, Gemini, LaMa) are optional and install later from **inside the app** via the Install AI button (requires internet).
 >
@@ -122,20 +124,18 @@ npm run dev
 
 🌐 Open your browser at **http://localhost:3000** — no login needed, straight to the dashboard.
 
-### Option 3 — use it from your phone / tablet (same WiFi as the laptop 📱)
+### Option 3 — use it from your phone / tablet (same WiFi as the PC 📱)
 
-The servers run on the laptop; your phone only needs a browser:
+The servers run on the PC; your phone only needs a browser:
 
-1. ⚡ Connect the phone and the laptop to the **same WiFi network**.
-2. 🔛 Double-click **`start-lan.bat`** (Windows). It:
-   - ✔ Starts the same servers as `start.bat` (if you never ran `start.bat`, run it first — it installs everything)
-   - ✔ Opens port 3000 in the Windows firewall (one-time)
-   - ✔ Prints the URL to open on the phone, e.g. `http://192.168.1.42:3000`
-3. 📱 Open that URL in the phone's browser.
+- 🪟 **Desktop app (v1.0.1+):** LAN access is **built in** — open **Settings → LAN**, switch it on, and it shows the address (`http://<PC-IP>:3000`) plus a 6-digit **PIN** to enter on the phone. No scripts needed.
+- 🧑‍💻 **Running from source:** connect the phone and the PC to the **same WiFi**, then double-click **`start-lan.bat`** (Windows). It starts the same servers as `start.bat` (if you never ran `start.bat`, run it first — it installs everything), opens port 3000 in the Windows firewall (one-time), and prints the URL for the phone, e.g. `http://192.168.1.42:3000`.
+
+📱 Open that URL in the phone's browser (with the desktop app, enter the PIN too).
 
 > ℹ️ **How it works:** only the Next.js frontend (port 3000) is shared on the network. Django keeps listening on `127.0.0.1:8000` on the laptop, and the laptop's Next server proxies all `/api` and `/media` requests to it — so no CORS configuration is needed.
 >
-> ⚠️ **Security:** the studio has no real server-side login — **anyone** on the same WiFi can open it. Use it only on a home/private network, never on a public hotspot.
+> ⚠️ **Security:** the **desktop app** gates LAN access behind a 6-digit **PIN** (Settings → LAN) — nobody gets in without it. When running **from source**, LAN access has no PIN: **anyone** on the same WiFi can open it. Either way, use it only on a home/private network, never on a public hotspot.
 >
 > 🪧 If the phone can't reach the laptop, check the troubleshooting table below (WiFi client isolation is the usual culprit).
 >
