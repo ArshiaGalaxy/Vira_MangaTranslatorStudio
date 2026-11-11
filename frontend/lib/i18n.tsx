@@ -767,6 +767,7 @@ export const dict = {
   "toast.chainDone": { en: "All steps completed", fa: "همه مراحل انجام شد" },
   "toast.exportReady": { en: "Export ready", fa: "خروجی آماده شد" },
   "toast.download": { en: "Download", fa: "دانلود" },
+  "toast.downloadStarted": { en: "Download started", fa: "دانلود شروع شد" },
   "toast.loadFailed": { en: "Failed to load data", fa: "بارگذاری داده‌ها ناموفق بود" },
 
   "err.title": { en: "Something went wrong", fa: "مشکلی پیش آمد" },

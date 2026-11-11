@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useI18n } from "@/lib/i18n";
 
 export type Theme = "dark" | "light";
 
@@ -77,6 +78,7 @@ let nextId = 1;
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<Toast[]>([]);
+  const { t: tr } = useI18n();
 
   const push = useCallback(
     (message: string, kind: ToastKind = "info", opts?: ToastOptions) => {
@@ -124,6 +126,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               <a
                 href={t.href}
                 download
+                onClick={() => push(tr("toast.downloadStarted"), "info")}
                 className="btn btn-outline shrink-0 px-2.5 py-1 text-xs"
               >
                 {t.linkLabel ?? "OK"}

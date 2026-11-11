@@ -950,7 +950,8 @@ export default function WorkspacePage() {
     a.download = `translations-${id}-${transferScope === "current" ? `p${currentPage?.page_number ?? 1}` : "all"}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [id, scopeBlocks, transferScope, currentPage]);
+    toast.push(t("toast.downloadStarted"), "info");
+  }, [id, scopeBlocks, transferScope, currentPage, toast, t]);
 
   const invalidatePreview = useCallback(() => {
     setTransferPreview(null);
@@ -1383,6 +1384,7 @@ export default function WorkspacePage() {
               key={f.url}
               href={f.url}
               download
+              onClick={() => toast.push(t("toast.downloadStarted"), "info")}
               className="btn btn-outline px-3 py-1.5 text-xs"
             >
               <Download size={13} />
