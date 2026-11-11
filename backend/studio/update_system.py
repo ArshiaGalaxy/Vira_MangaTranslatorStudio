@@ -37,7 +37,7 @@ from .models import GlobalSetting
 
 # ── Configuration ───────────────────────────────────────────────────────────
 
-CURRENT_VERSION = "1.0.0"
+CURRENT_VERSION = "1.0.1"
 
 # Default manifest URL — can be overridden via STUDIO_UPDATE_MANIFEST_URL
 DEFAULT_MANIFEST_URL = (

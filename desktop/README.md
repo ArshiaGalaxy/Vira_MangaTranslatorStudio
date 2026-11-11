@@ -22,7 +22,7 @@ From the repo root (PowerShell):
 powershell -ExecutionPolicy Bypass -File desktop\scripts\build-app.ps1
 
 # The script stages payload, then runs: npx @tauri-apps/cli@2 build
-# Output: desktop\src-tauri\target\release\bundle\nsis\Vira_1.0.0_x64-setup.exe
+# Output: desktop\src-tauri\target\release\bundle\nsis\Vira_1.0.1_x64-setup.exe
 ```
 
 Useful flags (see the script header):
