@@ -1,11 +1,11 @@
 {
   "version": "1.0.1",
   "download_url": "https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio/releases/download/v1.0.1/Vira_1.0.1_x64-setup.exe",
-  "sha256": "18763b6c3f44e53a3090bccf843dcdb20f45f357f9fca2c1474eeb52946c60b6",
+  "sha256": "f344f0291a5bd607edc5cbc10afd32ed7020e5e03480deceb71a4ec0e19da6d6",
   "release_notes": "Vira MangaTranslatorStudio 1.0.1 — clean-brush and inpainting polish: brush marks are analyzed against their own surroundings (no more wrong-color floods), brush strokes draw smoothly with lag-free preview and erase ~8px beyond the line, auto blocks erase with the tight mask, plus opt-in PIN-gated LAN access from phones/tablets, export toasts with one-click download, one-click diagnostics export, RTL toggle fixes, and self-repairing inpaint padding defaults.",
   "published_at": "2026-11-11T11:28:26Z",
   "minimum_version": "0.0.0",
   "mandatory": false,
-  "file_size": 138844767,
+  "file_size": 138853972,
   "platform": "windows-x64"
 }
