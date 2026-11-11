@@ -1,11 +1,11 @@
 {
-  "version": "1.0.0",
-  "download_url": "https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio/releases/download/v1.0.0/Vira_1.0.0_x64-setup.exe",
-  "sha256": "a2c357342fbdc432e8c2300ecd5084afd1d93245e58c9078c050345e5fac6c0d",
-  "release_notes": "Vira MangaTranslatorStudio 1.0.0 — first public release. Full offline Windows installer (64-bit): Django backend, Next.js studio frontend, Python and Node runtimes and all core libraries bundled. Optional AI recognition/inpainting installs on first launch with resumable, SHA-verified downloads and per-host proxy routing.",
-  "published_at": "2026-11-09T13:34:04Z",
+  "version": "1.0.1",
+  "download_url": "https://github.com/ArshiaGalaxy/Vira_MangaTranslatorStudio/releases/download/v1.0.1/Vira_1.0.1_x64-setup.exe",
+  "sha256": "e5690bea5895db25dbb0d40a8d539119ac26cb486f0aa15db9cef13fb224d3f9",
+  "release_notes": "Vira MangaTranslatorStudio 1.0.1 — clean-brush and inpainting polish: brush marks are analyzed against their own surroundings (no more wrong-color floods), brush strokes draw smoothly with lag-free preview and erase ~8px beyond the line, auto blocks erase with the tight mask, plus opt-in PIN-gated LAN access from phones/tablets, export toasts with one-click download, one-click diagnostics export, RTL toggle fixes, and self-repairing inpaint padding defaults.",
+  "published_at": "2026-11-11T11:28:26Z",
   "minimum_version": "0.0.0",
   "mandatory": false,
-  "file_size": 138839408,
+  "file_size": 328227476,
   "platform": "windows-x64"
 }
