@@ -85,6 +85,11 @@ if (-not $SkipPayload) {
     # Remove any nested __pycache__ copies that slipped through.
     Get-ChildItem $beDest -Recurse -Directory -Force | Where-Object { $_.Name -like "*__pycache__*" } |
         Remove-Item -Recurse -Force
+    # The LaMa ONNX model (~200 MB) is NOT shipped: a Core install lacks
+    # onnxruntime and can't load it, and the AI install downloads the
+    # SHA-verified file into the app's data folder anyway. Shipping it
+    # needlessly doubled the installer.
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $beDest "studio_engine\models")
     if (-not (Test-Path "$beDest\manage.py")) { throw "backend staging failed (manage.py missing)" }
     if (-not (Test-Path "$beDest\requirements-core.txt")) { throw "requirements-core.txt missing from staging" }
     # Launcher-only helper for the resumable AI-package download (used by ai.rs).
